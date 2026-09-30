@@ -1,0 +1,28 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'email', 'displayName', 'role', 'createdAt']) &&
+             data.id is string && data.id.size() > 0 && data.id.size() < 120 &&
+             data.email is string && data.email.size() > 0 && data.email.size() < 150 &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() < 150 &&
+             data.role in ['STUDENT', 'TEACHER', 'SCHOOL_ADMIN', 'ADMIN'] &&
+             data.createdAt is string && data.createdAt.size() < 60;
+    }
+
+    match /users/{userId} {
+      allow read: if true;
+      allow create, update: if isValidUser(request.resource.data);
+      allow delete: if true;
+    }
+
+    match /exercises/{exerciseId} {
+      allow read, write: if true;
+    }
+
+    match /student_groups/{docId} {
+      allow read, write: if true;
+    }
+  }
+}

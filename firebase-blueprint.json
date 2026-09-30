@@ -1,0 +1,68 @@
+{
+  "entities": {
+    "UserAccount": {
+      "title": "UserAccount",
+      "description": "Registered student, teacher, school admin or main administrator account in FältKoll.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "role": { "type": "string", "enum": ["STUDENT", "TEACHER", "SCHOOL_ADMIN", "ADMIN"] },
+        "password": { "type": "string" },
+        "schoolOrCompany": { "type": "string" },
+        "studentGroup": { "type": "string" },
+        "schoolClass": { "type": "string" },
+        "teacherId": { "type": "string" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "lastLogin": { "type": "string" }
+      },
+      "required": ["id", "email", "displayName", "role", "createdAt"]
+    },
+    "TeacherExercise": {
+      "title": "TeacherExercise",
+      "description": "Custom or template-based field exercise created by a teacher for students.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "code": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "projectType": { "type": "string" },
+        "targetGroup": { "type": "string" },
+        "createdByTeacherId": { "type": "string" },
+        "createdByTeacherName": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "moments": { "type": "array" },
+        "exerciseSettings": { "type": "object" }
+      },
+      "required": ["id", "code", "title", "projectType", "moments"]
+    },
+    "StudentGroupsConfig": {
+      "title": "StudentGroupsConfig",
+      "description": "Custom student groups and programs created by teachers or admins.",
+      "type": "object",
+      "properties": {
+        "customGroups": { "type": "array" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["customGroups"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserAccount" },
+      "description": "Global user accounts for FältKoll students, teachers, school admins and administrators."
+    },
+    "/exercises/{exerciseId}": {
+      "schema": { "$ref": "#/entities/TeacherExercise" },
+      "description": "Custom exercises created by teachers in the Kreatörspanel."
+    },
+    "/student_groups/{docId}": {
+      "schema": { "$ref": "#/entities/StudentGroupsConfig" },
+      "description": "Custom student groups and program categories."
+    }
+  }
+}
