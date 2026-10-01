@@ -135,8 +135,14 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
           email: norm.includes('@') ? norm : 'admin@faltkoll.se',
           displayName: 'Administratör (Admin)',
           role: 'ADMIN',
+          accountContext: contextMode,
           password: cleanPass,
-          schoolOrCompany: 'Anläggningsutbildning',
+          schoolOrCompany:
+            contextMode === 'WORKPLACE'
+              ? 'Anläggning & Entreprenad'
+              : contextMode === 'APL'
+              ? 'APL-arbetsplats'
+              : 'Bygg- & Anläggningsutbildning',
           createdAt: '2026-01-01 08:00',
           lastLogin: new Date().toISOString().replace('T', ' ').substring(0, 16),
         };
@@ -214,7 +220,12 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
       });
 
       if (result.ok && result.data?.user) {
-        const loggedInUser = result.data.user;
+        const loggedInUser: UserAccount = {
+          ...result.data.user,
+          accountContext:
+            result.data.user.accountContext ||
+            (result.data.user.role === 'ADMIN' ? contextMode : undefined),
+        };
         persistUserLocally(loggedInUser);
         if (rememberMe) {
           try {
@@ -333,7 +344,13 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
     const cleanName = regName.trim();
     const cleanEmail = regEmail.trim().toLowerCase();
     const cleanPass = regPassword.trim();
-    const cleanSchool = regSchool.trim() || 'Bygg- & Anläggningsutbildning';
+    const defaultOrg =
+      contextMode === 'WORKPLACE'
+        ? 'Anläggning & Entreprenad'
+        : contextMode === 'APL'
+        ? 'APL-arbetsplats'
+        : 'Bygg- & Anläggningsutbildning';
+    const cleanSchool = regSchool.trim() || defaultOrg;
 
     if (!cleanName) {
       setErrorMsg('Vänligen ange ditt för- och efternamn.');
@@ -363,12 +380,6 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
     setIsLoading(true);
 
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
-    const defaultOrg =
-      contextMode === 'WORKPLACE'
-        ? 'Anläggning & Entreprenad'
-        : contextMode === 'APL'
-        ? 'APL-arbetsplats'
-        : 'Bygg- & Anläggningsutbildning';
     const newLocalUser: UserAccount = {
       id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       displayName: cleanName,
@@ -376,7 +387,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
       role: regRole,
       accountContext: contextMode,
       password: cleanPass,
-      schoolOrCompany: regSchool.trim() || defaultOrg,
+      schoolOrCompany: cleanSchool,
       studentGroup: regRole === 'STUDENT' ? regStudentGroup : undefined,
       schoolClass: regRole === 'STUDENT' ? regSchoolClass.trim() || undefined : undefined,
       createdAt: now,
@@ -393,6 +404,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
           email: cleanEmail,
           password: cleanPass,
           role: regRole,
+          accountContext: contextMode,
           schoolOrCompany: cleanSchool,
           studentGroup: regRole === 'STUDENT' ? regStudentGroup : undefined,
           schoolClass: regRole === 'STUDENT' ? regSchoolClass.trim() || undefined : undefined,
@@ -793,7 +805,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
 
           {/* Säkerhetsnotering */}
           <div className="text-[11px] text-slate-500 text-center leading-relaxed pt-2 border-t border-[#222222]">
-            🛡️ Konton sparas säkert både på enheten och i skolans databas. Fungerar även helt utan internetanslutning ute på arbetsplatsen.
+            🛡️ Konton sparas säkert både på enheten och i molndatabasen. Fungerar även helt utan internetanslutning ute på fältet.
           </div>
         </div>
       </div>

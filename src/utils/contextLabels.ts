@@ -4,9 +4,16 @@ export interface ContextVocabulary {
   mode: AppContextMode;
   modeTitle: string;
   modeSubtitle: string;
+  modeBadge: string;
   // Projects / Exercises
   projectsHeading: string;
   projectsSubtitle: string;
+  createProjectHeading: string;
+  createProjectSubtitle: string;
+  exerciseTabLabel: string;
+  standardTemplateTabLabel: string;
+  exerciseCodePrompt: string;
+  createButtonLabel: string;
   newProjectButton: string;
   createProjectButton: string;
   openProjectButton: string;
@@ -15,6 +22,8 @@ export interface ContextVocabulary {
   createFirstProjectButton: string;
   projectSingular: string;
   projectPlural: string;
+  projectNoun: string;
+  projectNounDefinite: string;
   projectNounSingular: string;
   projectNounPlural: string;
   activeProjectSubtitle: string;
@@ -96,25 +105,74 @@ export const SCHOOL_GROUPS = [
   'Byggprogrammet (BA)',
   'Anläggare (Mark & Anläggning)',
   'Vuxenutbildning (Yrkesvux)',
-  'Gymnasie (Åk 1–3)',
-  'Gymnasie Åk 1 (BA1)',
-  'Gymnasie Åk 2 (BA2)',
-  'Gymnasie Åk 3 (BA3)',
+  'Gymnasium (Åk 1–3)',
+  'Gymnasium Åk 1 (BA1)',
+  'Gymnasium Åk 2 (BA2)',
+  'Gymnasium Åk 3 (BA3)',
   'Lärling / APL',
 ];
+
+export function getDefaultGroupsForContext(mode: AppContextMode): string[] {
+  if (mode === 'WORKPLACE') return WORKPLACE_GROUPS;
+  if (mode === 'APL') return APL_GROUPS;
+  return SCHOOL_GROUPS;
+}
+
+export function inferAccountContextMode(
+  user?: UserAccount | null,
+  fallbackMode: AppContextMode = 'WORKPLACE'
+): AppContextMode {
+  if (!user) return fallbackMode;
+  if (
+    user.accountContext === 'WORKPLACE' ||
+    user.accountContext === 'APL' ||
+    user.accountContext === 'SCHOOL'
+  ) {
+    return user.accountContext;
+  }
+
+  const emailLower = (user.email || '').toLowerCase();
+  const orgLower = (user.schoolOrCompany || '').toLowerCase();
+  const grpLower = (user.studentGroup || '').toLowerCase();
+  const clsLower = (user.schoolClass || '').toLowerCase();
+
+  if (
+    orgLower.includes('apl') ||
+    grpLower.includes('apl') ||
+    clsLower.includes('apl')
+  ) {
+    return 'APL';
+  }
+
+  if (
+    emailLower.includes('@skola.se') ||
+    orgLower.includes('skola') ||
+    orgLower.includes('utbildning') ||
+    orgLower.includes('programmet') ||
+    orgLower.includes('yrkesakademin') ||
+    grpLower.includes('byggprogrammet') ||
+    grpLower.includes('gymnasi') ||
+    grpLower.includes('vuxenutbildning')
+  ) {
+    return 'SCHOOL';
+  }
+
+  return fallbackMode;
+}
 
 export function resolveAppContextMode(
   userSettings?: UserSettings | null,
   currentUser?: UserAccount | null
 ): AppContextMode {
+  // When a user is logged in, the account's own context strictly governs the app mode
+  if (currentUser) {
+    return inferAccountContextMode(currentUser, userSettings?.appContextMode || 'WORKPLACE');
+  }
   if (userSettings?.appContextMode) {
     return userSettings.appContextMode;
   }
-  if (currentUser?.accountContext) {
-    return currentUser.accountContext;
-  }
-  if (userSettings?.userUsageProfile === 'CONTRACTOR' || userSettings?.userUsageProfile === 'PRIVATE') {
-    return 'WORKPLACE';
+  if (userSettings?.userUsageProfile === 'SCHOOL') {
+    return 'SCHOOL';
   }
   return 'WORKPLACE';
 }
@@ -125,8 +183,15 @@ export function getContextVocabulary(mode: AppContextMode): ContextVocabulary {
       mode: 'WORKPLACE',
       modeTitle: 'Arbetsplats & Entreprenad',
       modeSubtitle: 'Yrkesbruk · Egenkontroll & AMA',
+      modeBadge: 'Arbetsplats & Entreprenad',
       projectsHeading: 'Mina Projekt',
       projectsSubtitle: 'Välj ett entreprenadprojekt för att utföra egenkontroll, fotodokumentera och signera.',
+      createProjectHeading: 'Starta nytt entreprenadprojekt',
+      createProjectSubtitle: 'Välj en mall från platschef/KMA eller starta ett AMA-standardprojekt (Husgrund, Plattsättning eller VA).',
+      exerciseTabLabel: 'Mall / Arbetsorder från platschef',
+      standardTemplateTabLabel: 'AMA Standardprojekt (Husgrund / Mark / VA)',
+      exerciseCodePrompt: 'Har du fått en projekt- eller mallkod från platschefen?',
+      createButtonLabel: 'Starta Entreprenadprojekt',
       newProjectButton: 'Nytt projekt',
       createProjectButton: 'Nytt projekt',
       openProjectButton: 'Öppna projekt & egenkontroll',
@@ -135,6 +200,8 @@ export function getContextVocabulary(mode: AppContextMode): ContextVocabulary {
       createFirstProjectButton: 'Skapa första projektet',
       projectSingular: 'projekt',
       projectPlural: 'projekt',
+      projectNoun: 'projekt',
+      projectNounDefinite: 'projektet',
       projectNounSingular: 'projekt',
       projectNounPlural: 'projekt',
       activeProjectSubtitle: 'Aktiv entreprenad',
@@ -196,8 +263,15 @@ export function getContextVocabulary(mode: AppContextMode): ContextVocabulary {
       mode: 'APL',
       modeTitle: 'APL & Lärling på Företag',
       modeSubtitle: 'Arbetsplatsförlagt lärande & Yrkeshandledning',
+      modeBadge: 'APL & Lärling',
       projectsHeading: 'Projekt & APL-uppdrag',
       projectsSubtitle: 'Välj ett projekt eller APL-uppdrag för att dokumentera utförda moment och få handledarsignatur.',
+      createProjectHeading: 'Starta nytt APL-projekt',
+      createProjectSubtitle: 'Välj ett uppdrag från din APL-handledare eller starta ett standardprojekt (Husgrund, Plattsättning eller VA).',
+      exerciseTabLabel: 'APL-uppdrag från handledare',
+      standardTemplateTabLabel: 'Standardmall (Husgrund / Mark / VA)',
+      exerciseCodePrompt: 'Har du fått en uppdragskod från din APL-handledare?',
+      createButtonLabel: 'Starta APL-projekt',
       newProjectButton: 'Nytt APL-projekt',
       createProjectButton: 'Nytt APL-projekt',
       openProjectButton: 'Öppna APL-projekt & moment',
@@ -206,6 +280,8 @@ export function getContextVocabulary(mode: AppContextMode): ContextVocabulary {
       createFirstProjectButton: 'Skapa första APL-projektet',
       projectSingular: 'APL-projekt',
       projectPlural: 'APL-projekt',
+      projectNoun: 'APL-projekt',
+      projectNounDefinite: 'APL-projektet',
       projectNounSingular: 'APL-projekt',
       projectNounPlural: 'APL-projekt',
       activeProjectSubtitle: 'Aktivt APL-projekt',
@@ -267,8 +343,15 @@ export function getContextVocabulary(mode: AppContextMode): ContextVocabulary {
     mode: 'SCHOOL',
     modeTitle: 'Skola & Utbildning',
     modeSubtitle: 'Bygg- & Anläggningsutbildning · Egenkontroll',
+    modeBadge: 'Skola & Utbildning',
     projectsHeading: 'Mina Skolövningar',
     projectsSubtitle: 'Välj en övning nedan för att gå igenom momenten, ta fotobevis och signera.',
+    createProjectHeading: 'Starta ny skolövning',
+    createProjectSubtitle: 'Välj en anpassad övning från din lärare eller starta en standardmall (Husgrund, Plattsättning eller Avlopp).',
+    exerciseTabLabel: 'Lärarens Övningar (Rekommenderas)',
+    standardTemplateTabLabel: 'Standardmall (Husgrund / Mark / VA)',
+    exerciseCodePrompt: 'Har du fått en övningskod från läraren?',
+    createButtonLabel: 'Starta Skolövning',
     newProjectButton: 'Ny övning',
     createProjectButton: 'Ny övning',
     openProjectButton: 'Öppna övning & moment',
@@ -277,6 +360,8 @@ export function getContextVocabulary(mode: AppContextMode): ContextVocabulary {
     createFirstProjectButton: 'Skapa första övningen',
     projectSingular: 'övning',
     projectPlural: 'övningar',
+    projectNoun: 'övning',
+    projectNounDefinite: 'övningen',
     projectNounSingular: 'övning',
     projectNounPlural: 'övningar',
     activeProjectSubtitle: 'Aktiv övning',

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Menu, ArrowLeft, FileText, HardHat, Bell, LogOut } from 'lucide-react';
-import { ViewState, UserAccount, UserSettings, AppContextMode } from '../types';
+import { ViewState, UserAccount, UserSettings } from '../types';
 import {
   getContextVocabulary,
   getContextualRoleLabel,
@@ -36,20 +36,9 @@ export const Header: React.FC<HeaderProps> = ({
   unreadNoticesCount = 0,
   currentUser,
   userSettings,
-  onUpdateUserSettings,
 }) => {
   const contextMode = resolveAppContextMode(userSettings, currentUser);
   const vocab = getContextVocabulary(contextMode);
-  const isLockedSchoolStudent =
-    currentUser?.role === 'STUDENT' && currentUser?.accountContext === 'SCHOOL';
-
-  const handleSwitchMode = (mode: AppContextMode) => {
-    if (!userSettings || !onUpdateUserSettings) return;
-    onUpdateUserSettings({
-      ...userSettings,
-      appContextMode: mode,
-    });
-  };
 
   return (
     <header className="sticky top-0 z-40 bg-[#121212] border-b border-[#242424] font-sans">
@@ -60,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
             type="button"
             onClick={onOpenMenu}
             className="w-10 h-10 rounded-xl bg-[#1a1a1a] hover:bg-[#242424] text-white border border-[#2e2e2e] flex items-center justify-center cursor-pointer transition-colors shrink-0"
-            title="Meny och inställningar"
+            title="Meny och verktyg"
           >
             <Menu className="w-5 h-5" />
           </button>
@@ -81,43 +70,22 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           <div className="min-w-0">
-            <h1 className="text-base sm:text-lg font-black text-white tracking-tight truncate leading-tight">
-              {projectName ? projectName : 'FältKoll'}
-            </h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-base sm:text-lg font-black text-white tracking-tight truncate leading-tight">
+                {projectName ? projectName : 'FältKoll'}
+              </h1>
+              <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-[#1c1c1c] text-orange-400 border border-[#2e2e2e] shrink-0">
+                {vocab.modeTitle}
+              </span>
+            </div>
             <span className="text-[11px] text-slate-400 block truncate">
               {projectName ? vocab.activeProjectSubtitle : vocab.modeSubtitle}
             </span>
           </div>
         </div>
 
-        {/* Right: Mode Switcher + Actions + User */}
+        {/* Right: Actions + User */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Clean Segmented Context Switcher (Arbete / APL / Skola) */}
-          {!isLockedSchoolStudent && onUpdateUserSettings && (
-            <div className="hidden md:flex items-center gap-0.5 p-1 bg-[#181818] border border-[#2a2a2a] rounded-xl">
-              {(
-                [
-                  { id: 'WORKPLACE', label: 'Arbetsplats' },
-                  { id: 'APL', label: 'APL / Lärling' },
-                  { id: 'SCHOOL', label: 'Skola' },
-                ] as { id: AppContextMode; label: string }[]
-              ).map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => handleSwitchMode(m.id)}
-                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
-                    contextMode === m.id
-                      ? 'bg-orange-500 text-black font-black'
-                      : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {m.label}
-                </button>
-              ))}
-            </div>
-          )}
-
           {currentView === 'CHECKLIST' && onOpenReport && (
             <button
               type="button"
@@ -139,7 +107,7 @@ export const Header: React.FC<HeaderProps> = ({
                 type="button"
                 onClick={onOpenNotices}
                 className="w-10 h-10 rounded-xl bg-[#1a1a1a] hover:bg-[#242424] text-slate-300 hover:text-white border border-[#2e2e2e] flex items-center justify-center cursor-pointer transition-colors relative"
-                title="Meddelanden & utskick"
+                title={vocab.noticesTitle}
               >
                 <Bell className="w-4 h-4 text-orange-400" />
                 {unreadNoticesCount > 0 && (
@@ -153,7 +121,7 @@ export const Header: React.FC<HeaderProps> = ({
           {currentUser && (
             <div className="flex items-center gap-2 bg-[#181818] border border-[#2a2a2a] pl-2.5 pr-1 py-1 rounded-xl">
               <div className="text-xs leading-tight hidden sm:block">
-                <span className="font-bold text-white block max-w-[110px] truncate">
+                <span className="font-bold text-white block max-w-[120px] truncate">
                   {currentUser.displayName}
                 </span>
                 <span className="text-[11px] text-slate-400">

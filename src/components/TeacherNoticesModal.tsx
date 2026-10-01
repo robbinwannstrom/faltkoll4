@@ -1,18 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { TeacherNotification, UserAccount } from '../types';
+import { Bell, X, Send, CheckCircle2, Trash2, Sparkles } from 'lucide-react';
 import { safeFetchJson } from '../services/apiHelper';
-import {
-  Bell,
-  X,
-  Plus,
-  AlertTriangle,
-  Send,
-  CheckCircle2,
-  Calendar,
-  User,
-  ShieldCheck,
-  Megaphone,
-} from 'lucide-react';
+import { getContextVocabulary, inferAccountContextMode } from '../utils/contextLabels';
 
 interface TeacherNoticesModalProps {
   isOpen: boolean;
@@ -27,331 +17,339 @@ export const TeacherNoticesModal: React.FC<TeacherNoticesModalProps> = ({
   currentUser,
   onUnreadCountChanged,
 }) => {
-  const [notifications, setNotifications] = useState<TeacherNotification[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isBroadcasting, setIsBroadcasting] = useState(false);
-  const [showBroadcastForm, setShowBroadcastForm] = useState(false);
-
-  // New notice form state
-  const [title, setTitle] = useState('');
-  const [message, setMessage] = useState('');
-  const [priority, setPriority] = useState<'NORMAL' | 'URGENT'>('NORMAL');
-  const [feedbackMsg, setFeedbackMsg] = useState<string | null>(null);
+  const [notices, setNotices] = useState<TeacherNotification[]>([]);
+  const [newTitle, setNewTitle] = useState('');
+  const [newMessage, setNewMessage] = useState('');
+  const [isSending, setIsSending] = useState(false);
 
   const isTeacherOrAdmin =
-    currentUser?.role === 'TEACHER' || currentUser?.role === 'ADMIN';
+    currentUser?.role === 'TEACHER' ||
+    currentUser?.role === 'SCHOOL_ADMIN' ||
+    currentUser?.role === 'ADMIN';
 
-  const fetchNotices = async () => {
+  const activeMode = currentUser ? inferAccountContextMode(currentUser) : 'WORKPLACE';
+  const vocab = getContextVocabulary(activeMode);
+
+  const getLocalReadIds = (): string[] => {
+    if (!currentUser) return [];
     try {
-      setIsLoading(true);
+      const raw = localStorage.getItem(`falthjalp_read_notices_${currentUser.id}`);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const saveLocalReadIds = (ids: string[]) => {
+    if (!currentUser) return;
+    try {
+      localStorage.setItem(`falthjalp_read_notices_${currentUser.id}`, JSON.stringify(ids));
+    } catch {}
+  };
+
+  const loadNotices = async () => {
+    try {
       const res = await safeFetchJson<{ notifications: TeacherNotification[] }>('/api/notifications');
       if (res.ok && res.data?.notifications) {
-        const list = res.data.notifications || [];
-        setNotifications(list);
-
-        // Calculate unread count for current user
-        if (currentUser) {
-          const unread = list.filter(
-            (n: TeacherNotification) => !n.readBy || !n.readBy.includes(currentUser.id)
-          ).length;
-          if (onUnreadCountChanged) onUnreadCountChanged(unread);
+        const list = (res.data.notifications || []).filter((n) => n.id !== 'notif_1');
+        const localRead = getLocalReadIds();
+        const merged = list.map((n) => {
+          const readList = n.readBy || [];
+          if (currentUser && localRead.includes(n.id) && !readList.includes(currentUser.id)) {
+            return { ...n, readBy: [...readList, currentUser.id] };
+          }
+          return { ...n, readBy: readList };
+        });
+        setNotices(merged);
+        if (onUnreadCountChanged && currentUser) {
+          const unread = merged.filter((n) => !(n.readBy || []).includes(currentUser.id)).length;
+          onUnreadCountChanged(unread);
         }
+      } else {
+        setNotices([]);
+        if (onUnreadCountChanged) onUnreadCountChanged(0);
       }
-    } catch (err) {
-      console.warn('Kunde inte läsa notiser från servern:', err);
-    } finally {
-      setIsLoading(false);
+    } catch {
+      setNotices([]);
+      if (onUnreadCountChanged) onUnreadCountChanged(0);
     }
   };
 
   useEffect(() => {
     if (isOpen) {
-      fetchNotices();
-      setFeedbackMsg(null);
+      loadNotices();
     }
-  }, [isOpen]);
+  }, [isOpen, currentUser?.id]);
 
-  const handleSendNotice = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!title.trim() || !message.trim()) return;
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
 
-    try {
-      setIsBroadcasting(true);
-      const res = await safeFetchJson('/api/notifications', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: title.trim(),
-          message: message.trim(),
-          priority,
-          authorName: currentUser?.displayName || 'Lärare',
-          authorRole: currentUser?.role || 'TEACHER',
-        }),
-      });
+  if (!isOpen) return null;
 
-      if (res.ok) {
-        setTitle('');
-        setMessage('');
-        setShowBroadcastForm(false);
-        setFeedbackMsg('Notisen har skickats ut till alla användare och elever!');
-        await fetchNotices();
-      } else {
-        alert('Kunde inte skicka notis: ' + (res.error || 'Serverfel'));
-      }
-    } catch (e: any) {
-      alert('Kunde inte skicka notis: ' + (e?.message || 'Kontrollera anslutningen'));
-    } finally {
-      setIsBroadcasting(false);
-    }
-  };
-
-  const handleMarkAsRead = async (noticeId: string) => {
+  const handleMarkRead = async (id: string) => {
     if (!currentUser) return;
+    const localRead = Array.from(new Set([...getLocalReadIds(), id]));
+    saveLocalReadIds(localRead);
+
     try {
-      await fetch(`/api/notifications/${noticeId}/read`, {
+      await safeFetchJson(`/api/notifications/${id}/read`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ userId: currentUser.id }),
       });
-      // Locally update
-      setNotifications((prev) =>
-        prev.map((n) =>
-          n.id === noticeId
-            ? { ...n, readBy: [...(n.readBy || []), currentUser.id] }
-            : n
-        )
-      );
+    } catch {}
+
+    setNotices((prev) => {
+      const next = prev.map((n) => {
+        const readList = n.readBy || [];
+        return n.id === id && !readList.includes(currentUser.id)
+          ? { ...n, readBy: [...readList, currentUser.id] }
+          : n;
+      });
+      if (onUnreadCountChanged) {
+        const unread = next.filter((n) => !(n.readBy || []).includes(currentUser.id)).length;
+        onUnreadCountChanged(unread);
+      }
+      return next;
+    });
+  };
+
+  const handleMarkAllRead = async () => {
+    if (!currentUser) return;
+    const allIds = notices.map((n) => n.id);
+    const localRead = Array.from(new Set([...getLocalReadIds(), ...allIds]));
+    saveLocalReadIds(localRead);
+
+    for (const id of allIds) {
+      try {
+        await safeFetchJson(`/api/notifications/${id}/read`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId: currentUser.id }),
+        });
+      } catch {}
+    }
+
+    setNotices((prev) =>
+      prev.map((n) => {
+        const readList = n.readBy || [];
+        return readList.includes(currentUser.id)
+          ? n
+          : { ...n, readBy: [...readList, currentUser.id] };
+      })
+    );
+    if (onUnreadCountChanged) onUnreadCountChanged(0);
+  };
+
+  const handleSendNotice = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTitle.trim() || !newMessage.trim()) return;
+    setIsSending(true);
+    try {
+      const res = await safeFetchJson<{ notification: TeacherNotification }>('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newTitle.trim(),
+          message: newMessage.trim(),
+          senderName: currentUser?.displayName || vocab.roleTeacherShort,
+        }),
+      });
+      if (res.ok && res.data?.notification) {
+        setNotices((prev) => [res.data!.notification, ...prev]);
+        setNewTitle('');
+        setNewMessage('');
+      }
+    } catch {
+      // Ignore
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleDeleteNotice = async (id: string) => {
+    try {
+      await safeFetchJson(`/api/notifications/${id}`, { method: 'DELETE' });
+      setNotices((prev) => {
+        const next = prev.filter((n) => n.id !== id);
+        if (onUnreadCountChanged && currentUser) {
+          const unread = next.filter((n) => !(n.readBy || []).includes(currentUser.id)).length;
+          onUnreadCountChanged(unread);
+        }
+        return next;
+      });
     } catch {
       // Ignore
     }
   };
 
-  if (!isOpen) return null;
+  const unreadCount = currentUser
+    ? notices.filter((n) => !(n.readBy || []).includes(currentUser.id)).length
+    : 0;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="bg-[#10131d] border border-slate-700/90 rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl flex flex-col space-y-4 my-auto max-h-[92vh]">
-        {/* Top Header */}
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto font-sans animate-fade-in"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#1e1e1e] border-2 border-[#383838] rounded-3xl max-w-xl w-full overflow-hidden shadow-2xl my-auto flex flex-col max-h-[88vh]"
+      >
+        {/* Header */}
+        <div className="p-5 sm:p-6 bg-[#181818] border-b border-[#2e2e2e] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-400 flex items-center justify-center font-bold">
-              <Megaphone className="w-5 h-5 stroke-[2.2]" />
+            <div className="w-11 h-11 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/40 flex items-center justify-center shrink-0">
+              <Bell className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h3 className="text-base sm:text-lg font-bold text-white">
-                  Lärarnotiser & Meddelanden
-                </h3>
-                <span className="text-xs font-mono font-bold bg-slate-800 text-slate-300 px-2 py-0.5 rounded-full border border-slate-700">
-                  {notifications.length} st
-                </span>
-              </div>
-              <p className="text-xs text-slate-400">
-                Instruktioner och viktiga påminnelser från skola och handledare
-              </p>
+              <span className="text-[10px] font-black uppercase tracking-widest text-orange-400 block">
+                Meddelandecenter
+              </span>
+              <h2 className="text-lg sm:text-xl font-black text-white">{vocab.noticesTitle}</h2>
             </div>
           </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Action feedback message */}
-        {feedbackMsg && (
-          <div className="bg-emerald-950/80 border border-emerald-600/70 rounded-xl p-3 flex items-center gap-2.5 text-xs sm:text-sm text-emerald-200">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>{feedbackMsg}</span>
-          </div>
-        )}
-
-        {/* Teacher Broadcast Panel Trigger */}
-        {isTeacherOrAdmin && (
-          <div className="bg-[#151926] border border-amber-500/30 rounded-xl p-3.5 space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs font-bold text-amber-400">
-                <ShieldCheck className="w-4 h-4" />
-                <span>Lärarpanel: Skicka ut information till klassen/fältet</span>
-              </div>
+          <div className="flex items-center gap-2">
+            {unreadCount > 0 && (
               <button
                 type="button"
-                onClick={() => setShowBroadcastForm(!showBroadcastForm)}
-                className="text-xs font-bold text-sky-400 hover:underline cursor-pointer"
+                onClick={handleMarkAllRead}
+                className="px-3 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/40 text-emerald-300 text-xs font-bold cursor-pointer transition-colors"
               >
-                {showBroadcastForm ? 'Avbryt utskick' : '+ Skriv ny notis'}
+                Markera alla som lästa
               </button>
-            </div>
-
-            {showBroadcastForm && (
-              <form onSubmit={handleSendNotice} className="space-y-3 pt-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Rubrik:
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={title}
-                    onChange={(e) => setTitle(e.target.value)}
-                    placeholder="T.ex. Glöm inte kryssmått och laser vid schakt 2"
-                    className="w-full min-h-[42px] px-3 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl text-white text-xs sm:text-sm outline-none font-medium"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1">
-                    Meddelande till alla elever / användare:
-                  </label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Skriv instruktion, toleranskrav enligt AMA eller samlingstid..."
-                    className="w-full p-3 bg-slate-950 border border-slate-700 focus:border-amber-400 rounded-xl text-white text-xs sm:text-sm outline-none resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2 text-xs">
-                    <span className="text-slate-400">Prioritet:</span>
-                    <button
-                      type="button"
-                      onClick={() => setPriority('NORMAL')}
-                      className={`px-3 py-1 rounded-lg border font-bold cursor-pointer ${
-                        priority === 'NORMAL'
-                          ? 'bg-slate-800 text-sky-300 border-sky-500'
-                          : 'bg-slate-950 text-slate-500 border-slate-800'
-                      }`}
-                    >
-                      Normal
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPriority('URGENT')}
-                      className={`px-3 py-1 rounded-lg border font-bold cursor-pointer ${
-                        priority === 'URGENT'
-                          ? 'bg-rose-950 text-rose-300 border-rose-500'
-                          : 'bg-slate-950 text-slate-500 border-slate-800'
-                      }`}
-                    >
-                      🚨 Viktigt / Akut
-                    </button>
-                  </div>
-
-                  <button
-                    type="submit"
-                    disabled={isBroadcasting}
-                    className="min-h-[42px] px-5 bg-amber-500 hover:bg-amber-400 active:scale-95 text-slate-950 font-bold text-xs sm:text-sm rounded-xl flex items-center gap-2 cursor-pointer shadow-md transition-all"
-                  >
-                    <Send className="w-4 h-4" />
-                    <span>{isBroadcasting ? 'Skickar...' : 'Publicera utskick'}</span>
-                  </button>
-                </div>
-              </form>
             )}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-10 h-10 rounded-xl bg-[#262626] hover:bg-[#333333] text-slate-300 flex items-center justify-center cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
-        )}
+        </div>
 
-        {/* Notices Feed */}
-        <div className="flex-1 overflow-y-auto space-y-3 min-h-[200px] max-h-[55vh] pr-1">
-          {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-10 text-slate-400 text-xs">
-              <div className="w-7 h-7 border-2 border-amber-500 border-t-transparent rounded-full animate-spin mb-2" />
-              <span>Hämtar lärarnotiser...</span>
-            </div>
-          ) : notifications.length === 0 ? (
-            <div className="bg-slate-950/70 border border-slate-850 rounded-xl p-8 text-center space-y-2">
-              <div className="w-12 h-12 rounded-xl bg-slate-900 border border-slate-850 text-slate-500 flex items-center justify-center mx-auto text-xl">
-                🔔
+        {/* Body */}
+        <div className="p-5 sm:p-6 overflow-y-auto space-y-5 flex-1">
+          {/* Teacher / Admin Create Notice Form */}
+          {isTeacherOrAdmin && (
+            <form
+              onSubmit={handleSendNotice}
+              className="p-4 bg-[#141414] border border-orange-500/40 rounded-2xl space-y-3"
+            >
+              <div className="flex items-center gap-2 text-xs font-black uppercase tracking-wider text-orange-400">
+                <Sparkles className="w-4 h-4" />
+                <span>Skicka ny notis till alla ({vocab.roleTeacherShort} / Admin)</span>
               </div>
-              <h4 className="text-sm font-bold text-slate-300">
-                Inga meddelanden just nu
-              </h4>
-              <p className="text-xs text-slate-400 max-w-sm mx-auto">
-                När din lärare eller arbetsledare skickar ut en instruktion eller påminnelse syns den direkt här i appen.
+              <input
+                type="text"
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="Rubrik (t.ex. Samling vid förrådet kl. 13:00)"
+                className="w-full min-h-[42px] px-3.5 bg-[#1e1e1e] border border-[#383838] rounded-xl text-sm font-bold text-white outline-none focus:border-orange-500"
+              />
+              <textarea
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                rows={2}
+                placeholder="Skriv ditt meddelande eller din instruktion..."
+                className="w-full p-3.5 bg-[#1e1e1e] border border-[#383838] rounded-xl text-sm text-white outline-none focus:border-orange-500"
+              />
+              <button
+                type="submit"
+                disabled={isSending || !newTitle.trim() || !newMessage.trim()}
+                className="w-full min-h-[42px] bg-orange-500 hover:bg-orange-400 disabled:opacity-40 text-black font-black text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Send className="w-4 h-4" />
+                <span>Skicka notis nu</span>
+              </button>
+            </form>
+          )}
+
+          {/* Notices List */}
+          {notices.length === 0 ? (
+            <div className="text-center py-10 space-y-2">
+              <Bell className="w-8 h-8 text-slate-500 mx-auto" />
+              <p className="text-slate-300 font-bold text-sm">Inga nya notiser just nu</p>
+              <p className="text-xs text-slate-500">
+                När {vocab.roleTeacherShort.toLowerCase()} eller administratör skickar ett meddelande visas det här.
               </p>
             </div>
           ) : (
-            notifications.map((notif) => {
-              const isRead =
-                currentUser && notif.readBy && notif.readBy.includes(currentUser.id);
-              const isUrgent = notif.priority === 'URGENT';
-
-              return (
-                <div
-                  key={notif.id}
-                  onClick={() => handleMarkAsRead(notif.id)}
-                  className={`p-4 rounded-xl border transition-all cursor-pointer ${
-                    isUrgent
-                      ? 'bg-[#181113] border-rose-800/80 hover:border-rose-600'
-                      : !isRead
-                      ? 'bg-[#121623] border-sky-700/80 hover:border-sky-500'
-                      : 'bg-slate-950/80 border-slate-850 hover:border-slate-750'
-                  }`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        {isUrgent ? (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-950 text-rose-300 border border-rose-800 flex items-center gap-1">
-                            <AlertTriangle className="w-3 h-3 text-rose-400" />
-                            VIKTIGT
-                          </span>
-                        ) : (
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-950 text-sky-300 border border-sky-800">
-                            INFORMATION
-                          </span>
-                        )}
-
-                        <span className="text-[11px] text-slate-400 flex items-center gap-1">
-                          <User className="w-3 h-3 text-slate-500" />
-                          {notif.authorName}
-                        </span>
-
-                        <span className="text-[11px] text-slate-500 font-mono">
-                          • {notif.createdAt}
+            <div className="space-y-3">
+              {notices.map((n) => {
+                const isRead = currentUser ? (n.readBy || []).includes(currentUser.id) : true;
+                return (
+                  <div
+                    key={n.id}
+                    onClick={() => handleMarkRead(n.id)}
+                    className={`p-4 rounded-2xl border-2 transition-all cursor-pointer ${
+                      isRead
+                        ? 'bg-[#161616] border-[#2c2c2c] opacity-80'
+                        : 'bg-orange-950/20 border-orange-500/60 shadow-md'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          {!isRead && (
+                            <span className="px-2 py-0.5 rounded-full bg-orange-500 text-black font-black text-[10px] uppercase">
+                              NY
+                            </span>
+                          )}
+                          <h3 className="font-black text-white text-sm sm:text-base">{n.title}</h3>
+                        </div>
+                        <span className="text-[11px] text-slate-400 font-semibold block mt-0.5">
+                          Från: {n.authorName || vocab.roleTeacherShort} • {n.createdAt}
                         </span>
                       </div>
 
-                      <h4 className="text-sm font-bold text-white pt-0.5 leading-snug">
-                        {notif.title}
-                      </h4>
-
-                      <p className="text-xs sm:text-sm text-slate-300 whitespace-pre-line leading-relaxed pt-1">
-                        {notif.message}
-                      </p>
+                      <div className="flex items-center gap-1.5">
+                        {isRead && (
+                          <span className="text-emerald-400 text-[11px] font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Läst
+                          </span>
+                        )}
+                        {isTeacherOrAdmin && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteNotice(n.id);
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-400 cursor-pointer"
+                            title="Radera notis"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
                     </div>
 
-                    {!isRead && (
-                      <span className="w-2.5 h-2.5 rounded-full bg-sky-400 shrink-0 mt-1 shadow-sm ring-2 ring-sky-400/40" />
-                    )}
+                    <p className="text-xs sm:text-sm text-slate-200 mt-2.5 leading-relaxed whitespace-pre-wrap">
+                      {n.message}
+                    </p>
                   </div>
-                </div>
-              );
-            })
+                );
+              })}
+            </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-slate-800 pt-3 text-xs">
-          <span className="text-slate-400">
-            Inloggad som:{' '}
-            <strong className="text-white">
-              {currentUser?.displayName || 'Gäst'} ({currentUser?.role === 'TEACHER' ? 'Lärare' : currentUser?.role === 'ADMIN' ? 'Admin' : 'Elev'})
-            </strong>
-          </span>
-
+        <div className="p-4 bg-[#141414] border-t border-[#2e2e2e]">
           <button
             type="button"
             onClick={onClose}
-            className="min-h-[38px] px-4 bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-700 font-bold rounded-xl cursor-pointer"
+            className="w-full min-h-[46px] bg-[#282828] hover:bg-[#333333] text-white font-black text-sm rounded-xl cursor-pointer"
           >
-            Stäng
+            Stäng fönster
           </button>
         </div>
       </div>

@@ -34,6 +34,7 @@ import { LoginView } from './components/LoginView';
 import { SettingsModal } from './components/SettingsModal';
 import { TeacherExerciseCreatorModal } from './components/TeacherExerciseCreatorModal';
 import { convertExerciseToProject } from './services/exerciseService';
+import { inferAccountContextMode } from './utils/contextLabels';
 
 export default function App() {
   const [view, setView] = useState<ViewState>('DASHBOARD');
@@ -72,7 +73,7 @@ export default function App() {
     }
   });
 
-  const [unreadNoticesCount, setUnreadNoticesCount] = useState<number>(1);
+  const [unreadNoticesCount, setUnreadNoticesCount] = useState<number>(0);
 
   // Check unread notices from server
   const checkNotices = async () => {
@@ -81,14 +82,26 @@ export default function App() {
       if (res.ok && res.data?.notifications) {
         const list = res.data.notifications || [];
         if (currentUser) {
+          let localReadIds: string[] = [];
+          try {
+            const raw = localStorage.getItem(`falthjalp_read_notices_${currentUser.id}`);
+            if (raw) localReadIds = JSON.parse(raw);
+          } catch {}
           const unread = list.filter(
-            (n: any) => !n.readBy || !n.readBy.includes(currentUser.id)
+            (n: any) =>
+              n.id !== 'notif_1' &&
+              (!n.readBy || !n.readBy.includes(currentUser.id)) &&
+              !localReadIds.includes(n.id)
           ).length;
           setUnreadNoticesCount(unread);
+        } else {
+          setUnreadNoticesCount(0);
         }
+      } else {
+        setUnreadNoticesCount(0);
       }
     } catch {
-      // Offline fallback
+      setUnreadNoticesCount(0);
     }
   };
 
@@ -287,16 +300,21 @@ export default function App() {
   };
 
   const handleUserLogin = (user: UserAccount, rememberMe: boolean = true) => {
-    setCurrentUser(user);
+    const resolvedContext = user.accountContext || inferAccountContextMode(user);
+    const enrichedUser: UserAccount = {
+      ...user,
+      accountContext: resolvedContext,
+    };
+    setCurrentUser(enrichedUser);
     if (rememberMe) {
       try {
-        localStorage.setItem('falthjalp_current_user', JSON.stringify(user));
+        localStorage.setItem('falthjalp_current_user', JSON.stringify(enrichedUser));
       } catch {}
     }
     const updatedSettings: UserSettings = {
       ...userSettings,
-      userName: userSettings.userName || user.displayName,
-      appContextMode: user.accountContext || userSettings.appContextMode || 'WORKPLACE',
+      userName: userSettings.userName || enrichedUser.displayName,
+      appContextMode: resolvedContext,
     };
     setUserSettings(updatedSettings);
     saveUserSettings(updatedSettings);

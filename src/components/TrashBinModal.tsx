@@ -66,8 +66,14 @@ export const TrashBinModal: React.FC<TrashBinModalProps> = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="bg-[#10131d] border border-slate-700/90 rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl flex flex-col space-y-4 my-auto max-h-[92vh]">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#10131d] border border-slate-700/90 rounded-2xl max-w-2xl w-full p-4 sm:p-6 shadow-2xl flex flex-col space-y-4 my-auto max-h-[92vh]"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-3">

@@ -229,8 +229,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150">
-      <div className="bg-[#121212] border-2 border-[#2c2c2c] rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-xs animate-in fade-in duration-150"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#121212] border-2 border-[#2c2c2c] rounded-3xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden font-sans"
+      >
         {/* Header */}
         <div className="p-4 sm:p-5 border-b border-[#262626] flex items-center justify-between bg-[#161616]">
           <div className="flex items-center gap-3">
@@ -447,71 +453,27 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 1: LAYOUT & VERKSAMHETSLÄGE */}
           {activeTab === 'LAYOUT' && (
             <div className="space-y-6">
-              {/* VERKSAMHETSLÄGE: ARBETE vs APL vs SKOLA */}
+              {/* VERKSAMHETSLÄGE: LÅST TILL KONTOTS TYP NÄR INLOGGAD */}
               <div className="space-y-3 pb-5 border-b border-[#262626]">
-                <div>
-                  <h3 className="text-base font-black text-white">
-                    1. Verksamhetsläge (Arbetsplats, APL eller Skola)
-                  </h3>
-                  <p className="text-xs text-slate-400 mt-0.5">
-                    Styr om appen ska visa ren entreprenadterminologi för yrkesarbetare (helt utan skol- och elevbegrepp), APL/Lärlingsläge eller Skolläge.
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <h3 className="text-base font-black text-white">
+                      1. Verksamhetsläge ({vocab.modeBadge})
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Verksamhetsläget styrs automatiskt av ditt inloggade konto ({vocab.modeTitle}).
+                    </p>
+                  </div>
+                  <span className="px-2.5 py-1 rounded-lg bg-orange-500/15 border border-orange-500/40 text-orange-300 text-xs font-black shrink-0">
+                    {vocab.modeBadge}
+                  </span>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSelectContextMode('WORKPLACE')}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                      contextMode === 'WORKPLACE'
-                        ? 'bg-orange-500/15 border-orange-500 text-white'
-                        : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-sm text-white">Arbetsplats & Företag</span>
-                      {contextMode === 'WORKPLACE' && <Check className="w-4 h-4 text-orange-400 stroke-[3]" />}
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      Renodlat yrkesläge för anläggare, platschefer och entreprenörer. Inga elev- eller skoltermer visas.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSelectContextMode('APL')}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                      contextMode === 'APL'
-                        ? 'bg-orange-500/15 border-orange-500 text-white'
-                        : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-sm text-white">APL & Lärling</span>
-                      {contextMode === 'APL' && <Check className="w-4 h-4 text-orange-400 stroke-[3]" />}
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      För arbetsplatser med lärlingar och APL-handledare. Anpassade termer för handledning på bygget.
-                    </p>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleSelectContextMode('SCHOOL')}
-                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                      contextMode === 'SCHOOL'
-                        ? 'bg-orange-500/15 border-orange-500 text-white'
-                        : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-black text-sm text-white">Skola & Utbildning</span>
-                      {contextMode === 'SCHOOL' && <Check className="w-4 h-4 text-orange-400 stroke-[3]" />}
-                    </div>
-                    <p className="text-[11px] text-slate-400 leading-relaxed">
-                      För yrkeslärare, skoladmin och elever med övningskoder, klasser och provläge.
-                    </p>
-                  </button>
+                <div className="p-3.5 rounded-2xl bg-[#181818] border border-[#2c2c2c] flex items-start gap-2.5 text-xs text-slate-300">
+                  <Lock className="w-4 h-4 text-orange-400 shrink-0 mt-0.5" />
+                  <div className="leading-relaxed">
+                    Ditt konto är kopplat till <strong className="text-white">{vocab.modeTitle}</strong>. För att byta mellan Arbetsplats, APL och Skola behöver du logga ut och logga in med ett konto som tillhör den verksamheten.
+                  </div>
                 </div>
               </div>
 
@@ -1107,7 +1069,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div className="p-3.5 rounded-2xl bg-[#1e1710] border border-amber-600/40 text-xs text-amber-200 space-y-1">
                 <div className="flex items-center gap-2 font-bold text-amber-300">
                   <AlertTriangle className="w-4 h-4" />
-                  <span>Viktig information om konsekvenser:</span>
+                  <span>Varning för konsekvenser:</span>
                 </div>
                 <p className="leading-relaxed text-amber-100/90">
                   Om du hoppar över försynen kan du när som helst göra den senare under schakt- eller förberedelsemomentet i checklistan.
@@ -1222,8 +1184,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/40 flex items-start gap-2.5 text-xs text-amber-200">
                   <Lock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                   <div className="leading-relaxed">
-                    <strong className="text-amber-300 block">Elevkonto (Rank 1) är låst för egen ändring</strong>
-                    Som elev kan du inte ändra namn, grupp eller klass på ditt eget konto. Endast din <strong>Lärare (Rank 2)</strong> eller <strong>Skoladmin / Huvudadmin (Rank 3–4)</strong> kan redigera dina kontouppgifter.
+                    <strong className="text-amber-300 block">
+                      {vocab.roleStudentShort}-konto (Rank 1) är låst för egen ändring
+                    </strong>
+                    Du kan inte ändra namn, grupp eller tillhörighet på ditt eget konto. Endast din{' '}
+                    <strong>{vocab.roleTeacherShort} (Rank 2)</strong> eller{' '}
+                    <strong>{vocab.roleSchoolAdminShort} / {vocab.roleAdmin} (Rank 3–4)</strong> kan redigera dina kontouppgifter.
                   </div>
                 </div>
               )}

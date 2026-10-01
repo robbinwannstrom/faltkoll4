@@ -4,6 +4,8 @@ import {
   getContextVocabulary,
   getContextualRoleLabel,
   resolveAppContextMode,
+  inferAccountContextMode,
+  getDefaultGroupsForContext,
 } from '../utils/contextLabels';
 import {
   User,
@@ -116,10 +118,20 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('1234');
   const [newUserRole, setNewUserRole] = useState<UserRole>('STUDENT');
-  const [newUserOrg, setNewUserOrg] = useState('Bygg- & Anläggningsprogrammet');
-  const [newUserGroup, setNewUserGroup] = useState('Byggprogrammet (BA)');
+  const [newUserOrg, setNewUserOrg] = useState(
+    activeContextMode === 'WORKPLACE'
+      ? 'Anläggning & Entreprenad AB'
+      : activeContextMode === 'APL'
+      ? 'APL-arbetsplats'
+      : 'Bygg- & Anläggningsprogrammet'
+  );
+  const [newUserGroup, setNewUserGroup] = useState(
+    getDefaultGroupsForContext(activeContextMode)[0] || 'Mark & Anläggning'
+  );
   const [newUserCustomGroup, setNewUserCustomGroup] = useState('');
-  const [newUserClass, setNewUserClass] = useState('BA25');
+  const [newUserClass, setNewUserClass] = useState(
+    activeContextMode === 'WORKPLACE' ? 'Lag 1' : activeContextMode === 'APL' ? 'APL-HT26' : 'BA25'
+  );
   const [customGroups, setCustomGroups] = useState<string[]>(() => {
     try {
       const raw = localStorage.getItem('faltkoll_custom_groups');
@@ -330,6 +342,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         email: 'angfar@skola.se',
         displayName: 'Angfar (Yrkeslärare)',
         role: 'TEACHER',
+        accountContext: 'SCHOOL',
         password: '1234',
         schoolOrCompany: 'Bygg- & Anläggningsutbildning',
         createdAt: '2026-01-10 08:00',
@@ -341,6 +354,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         email: 'skoladmin@skola.se',
         displayName: 'Skoladministratör (Utbildningsledare)',
         role: 'SCHOOL_ADMIN',
+        accountContext: 'SCHOOL',
         password: '1234',
         schoolOrCompany: 'Bygg- & Anläggningsutbildning',
         createdAt: '2026-01-05 08:00',
@@ -353,6 +367,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           email: 'elev1@skola.se',
           displayName: 'Erik Andersson',
           role: 'STUDENT',
+          accountContext: 'SCHOOL',
           password: '1234',
           schoolOrCompany: 'Bygg- & Anläggningsprogrammet',
           studentGroup: 'Anläggare (Mark & Anläggning)',
@@ -366,6 +381,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           email: 'elev2@skola.se',
           displayName: 'Maja Lindström',
           role: 'STUDENT',
+          accountContext: 'SCHOOL',
           password: '1234',
           schoolOrCompany: 'Bygg- & Anläggningsprogrammet',
           studentGroup: 'Byggprogrammet (BA)',
@@ -379,6 +395,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           email: 'elev3@skola.se',
           displayName: 'Kevin Berg',
           role: 'STUDENT',
+          accountContext: 'SCHOOL',
           password: '1234',
           schoolOrCompany: 'Vuxenutbildningen',
           studentGroup: 'Vuxenutbildning (Yrkesvux)',
@@ -392,6 +409,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           email: 'elev4@skola.se',
           displayName: 'Linnéa Holm',
           role: 'STUDENT',
+          accountContext: 'SCHOOL',
           password: '1234',
           schoolOrCompany: 'Bygg- & Anläggningsprogrammet',
           studentGroup: '',
@@ -399,6 +417,84 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
           teacherId: 'usr_angfar_teacher',
           createdAt: '2026-02-12 11:00',
           lastLogin: '2026-09-28 11:10',
+        },
+      ];
+
+      const defaultWorkplaceUsers: UserAccount[] = [
+        {
+          id: 'usr_work_admin_1',
+          email: 'platschef@entreprenad.se',
+          displayName: 'Henrik Lind (Platschef)',
+          role: 'SCHOOL_ADMIN',
+          accountContext: 'WORKPLACE',
+          password: '1234',
+          schoolOrCompany: 'Svensk Mark & Anläggning AB',
+          createdAt: '2026-01-15 07:00',
+          lastLogin: '2026-09-28 06:45',
+        },
+        {
+          id: 'usr_work_leader_1',
+          email: 'arbetsledare@entreprenad.se',
+          displayName: 'Mikael Sund (Arbetsledare)',
+          role: 'TEACHER',
+          accountContext: 'WORKPLACE',
+          password: '1234',
+          schoolOrCompany: 'Svensk Mark & Anläggning AB',
+          createdAt: '2026-01-16 07:30',
+          lastLogin: '2026-09-28 07:10',
+        },
+        {
+          id: 'usr_work_worker_1',
+          email: 'johan@entreprenad.se',
+          displayName: 'Johan Ekström',
+          role: 'STUDENT',
+          accountContext: 'WORKPLACE',
+          password: '1234',
+          schoolOrCompany: 'Svensk Mark & Anläggning AB',
+          studentGroup: 'Mark & Anläggning',
+          schoolClass: 'Marklag 1',
+          createdAt: '2026-02-01 07:00',
+          lastLogin: '2026-09-28 08:00',
+        },
+        {
+          id: 'usr_work_worker_2',
+          email: 'sara@entreprenad.se',
+          displayName: 'Sara Nyström',
+          role: 'STUDENT',
+          accountContext: 'WORKPLACE',
+          password: '1234',
+          schoolOrCompany: 'Svensk Mark & Anläggning AB',
+          studentGroup: 'VA & Ledningsbyggnad',
+          schoolClass: 'VA-lag 2',
+          createdAt: '2026-02-03 07:00',
+          lastLogin: '2026-09-28 08:20',
+        },
+      ];
+
+      const defaultAplUsers: UserAccount[] = [
+        {
+          id: 'usr_apl_supervisor_1',
+          email: 'handledare@apl.se',
+          displayName: 'Anders Kraft (APL-handledare)',
+          role: 'TEACHER',
+          accountContext: 'APL',
+          password: '1234',
+          schoolOrCompany: 'Kraft Markentreprenad AB',
+          createdAt: '2026-01-20 07:30',
+          lastLogin: '2026-09-28 07:40',
+        },
+        {
+          id: 'usr_apl_apprentice_1',
+          email: 'larling@apl.se',
+          displayName: 'Lucas Bergström',
+          role: 'STUDENT',
+          accountContext: 'APL',
+          password: '1234',
+          schoolOrCompany: 'Kraft Markentreprenad AB',
+          studentGroup: 'APL – Mark & Anläggning',
+          schoolClass: 'APL-HT26',
+          createdAt: '2026-02-05 08:00',
+          lastLogin: '2026-09-28 08:15',
         },
       ];
 
@@ -415,6 +511,8 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         defaultSchoolAdmin,
         defaultTeacherAngfar,
         ...defaultSampleStudents,
+        ...defaultWorkplaceUsers,
+        ...defaultAplUsers,
         ...localSavedUsers,
         ...serverUsers,
         ...cloudUsers,
@@ -535,7 +633,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
         displayName: newUserName.trim(),
         password: newUserPassword.trim(),
         role: roleToAssign,
-        schoolOrCompany: newUserOrg.trim() || 'Bygg- & Anläggningsprogrammet',
+        accountContext: activeContextMode,
+        schoolOrCompany:
+          newUserOrg.trim() ||
+          (activeContextMode === 'WORKPLACE'
+            ? 'Anläggning & Entreprenad AB'
+            : activeContextMode === 'APL'
+            ? 'APL-arbetsplats'
+            : 'Bygg- & Anläggningsprogrammet'),
         studentGroup: finalGroup,
         schoolClass: roleToAssign === 'STUDENT' ? newUserClass.trim() || undefined : undefined,
         teacherId: isTeacher ? currentUser?.id : undefined,
@@ -554,6 +659,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       });
 
       const createdUser = res.ok && res.data?.user ? res.data.user : newAccount;
+      createdUser.accountContext = activeContextMode;
       createdUser.studentGroup = finalGroup;
       createdUser.schoolClass = roleToAssign === 'STUDENT' ? newUserClass.trim() || undefined : undefined;
 
@@ -775,33 +881,40 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
     }
   };
 
-  // Collect all unique student groups and classes
-  const allAvailableGroups = Array.from(
-    new Set([
-      ...STANDARD_STUDENT_GROUPS,
-      ...customGroups,
-      ...allUsers.map((u) => u.studentGroup).filter((g): g is string => !!g && g.trim().length > 0),
-    ])
-  );
-
-  const allAvailableClasses = Array.from(
-    new Set(
-      allUsers
-        .filter((u) => u.role === 'STUDENT' && u.schoolClass && u.schoolClass.trim().length > 0)
-        .map((u) => u.schoolClass!.trim())
-    )
-  ).sort((a, b) => a.localeCompare(b, 'sv'));
-
-  const allTeachers = allUsers.filter((u) => u.role === 'TEACHER' || u.role === 'SCHOOL_ADMIN' || u.role === 'ADMIN');
-
-  // Filter and sort users
+  // Filter and sort users — strictly scoped to the active context mode (WORKPLACE vs APL vs SCHOOL)
   const visibleUsersForCaller = allUsers.filter((u) => {
+    if (u.id === currentUser?.id) return true;
+    const uContext = inferAccountContextMode(u);
+    if (uContext !== activeContextMode) return false;
     if (isAdmin) return true;
     if (isTeacher) {
       return u.role === 'STUDENT' || u.id === currentUser?.id;
     }
     return u.id === currentUser?.id;
   });
+
+  // Collect all unique groups and classes for the active context mode
+  const allAvailableGroups = Array.from(
+    new Set([
+      ...getDefaultGroupsForContext(activeContextMode),
+      ...customGroups,
+      ...visibleUsersForCaller
+        .map((u) => u.studentGroup)
+        .filter((g): g is string => !!g && g.trim().length > 0),
+    ])
+  );
+
+  const allAvailableClasses = Array.from(
+    new Set(
+      visibleUsersForCaller
+        .filter((u) => u.role === 'STUDENT' && u.schoolClass && u.schoolClass.trim().length > 0)
+        .map((u) => u.schoolClass!.trim())
+    )
+  ).sort((a, b) => a.localeCompare(b, 'sv'));
+
+  const allTeachers = visibleUsersForCaller.filter(
+    (u) => u.role === 'TEACHER' || u.role === 'SCHOOL_ADMIN' || u.role === 'ADMIN'
+  );
 
   const sortUsersFn = (a: UserAccount, b: UserAccount) => {
     if (sortOrder === 'NAME_ASC') return a.displayName.localeCompare(b.displayName, 'sv');
@@ -995,7 +1108,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       if (otherUsers.length > 0) {
         buckets.push({
           id: 'cat_other_unassigned',
-          title: 'Övrigt (Utan klass)',
+          title: `Övrigt (Utan ${vocab.classLabel.toLowerCase()})`,
           subtitle: `Konton som inte tillhör en specifik ${vocab.classLabel.toLowerCase()}`,
           badgeTone: 'slate',
           users: otherUsers,
@@ -1070,7 +1183,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                   {vocab.classLabel}
                 </span>
                 <span className="font-bold text-white text-sm mt-1 block">
-                  {currentUser.schoolClass || 'Övrigt (Ingen klass)'}
+                  {currentUser.schoolClass || `Övrigt (Ingen ${vocab.classLabel.toLowerCase()})`}
                 </span>
               </div>
               <div className="p-3.5 rounded-xl bg-[#121212] border border-[#242424]">
@@ -1228,7 +1341,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             }`}
           >
             <Layers className="w-3.5 h-3.5" />
-            <span>Klasser & Grupper</span>
+            <span>{vocab.classLabel} & Grupper</span>
           </button>
           <button
             type="button"
@@ -1402,12 +1515,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       className="w-full min-h-[38px] px-3 bg-[#121212] border border-[#2e2e2e] rounded-xl text-xs font-bold text-white outline-none focus:border-orange-500"
                     >
                       <option value="CLASS_CATEGORY">
-                        Klass / Tillhörighet + Övrigt (Standard)
+                        {vocab.classLabel} / Tillhörighet + Övrigt (Standard)
                       </option>
                       <option value="PROGRAM_GROUP">
                         {vocab.groupLabel} + Övrigt
                       </option>
-                      <option value="ROLE_ONLY">Endast Roll (Admin / Lärare / Elev)</option>
+                      <option value="ROLE_ONLY">
+                        Endast Roll ({vocab.roleSchoolAdminShort} / {vocab.roleTeacherShort} / {vocab.roleStudentShort})
+                      </option>
                     </select>
                   </div>
 
@@ -1439,8 +1554,10 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
                       onChange={(e) => setSelectedGroupFilter(e.target.value)}
                       className="w-full min-h-[38px] px-3 bg-[#121212] border border-[#2e2e2e] rounded-xl text-xs font-bold text-white outline-none focus:border-orange-500"
                     >
-                      <option value="ALL">Alla klasser & kategorier</option>
-                      <option value="__UNASSIGNED__">Övrigt (Utan klass / grupp)</option>
+                      <option value="ALL">Alla kategorier</option>
+                      <option value="__UNASSIGNED__">
+                        Övrigt (Utan {vocab.classLabel.toLowerCase()} / grupp)
+                      </option>
                       {allAvailableClasses.length > 0 && (
                         <optgroup label={vocab.classLabel}>
                           {allAvailableClasses.map((cls) => (
@@ -1783,7 +1900,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       {activeSubTab === 'GROUPS' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-black text-white">Hantera Klasser & Kategorier</h2>
+            <h2 className="text-base font-black text-white">Hantera {vocab.classLabel} & Kategorier</h2>
             <button
               type="button"
               onClick={() => setActiveSubTab('ACCOUNTS')}
@@ -1817,7 +1934,7 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
             <div>
               <h2 className="text-base sm:text-lg font-black text-white">Skapa nytt konto</h2>
               <p className="text-xs text-slate-400">
-                Välj kategori/roll och vilken klass eller grupp kontot ska tillhöra (eller lämna klass tom för Övrigt).
+                Välj kategori/roll och vilken {vocab.classLabel.toLowerCase()} eller grupp kontot ska tillhöra (eller lämna tom för Övrigt).
               </p>
             </div>
             <button
@@ -1968,8 +2085,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
       {/* MODAL: EDIT ACCOUNT                                                      */}
       {/* ======================================================================== */}
       {editingUser && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#181818] border border-[#333333] rounded-2xl max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+        <div
+          onClick={() => setEditingUser(null)}
+          className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#181818] border border-[#333333] rounded-2xl max-w-lg w-full p-5 sm:p-6 space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto"
+          >
             <div className="flex items-center justify-between border-b border-[#262626] pb-3">
               <div>
                 <h3 className="text-base font-black text-white">Redigera konto</h3>
@@ -2137,8 +2260,14 @@ export const AccountsView: React.FC<AccountsViewProps> = ({
 
       {/* MODAL: CREATE NEW GROUP */}
       {isNewGroupModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
-          <div className="bg-[#181818] border border-[#333333] rounded-2xl max-w-sm w-full p-5 space-y-4">
+        <div
+          onClick={() => setIsNewGroupModalOpen(false)}
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#181818] border border-[#333333] rounded-2xl max-w-sm w-full p-5 space-y-4"
+          >
             <h3 className="text-sm font-black text-white">Skapa ny kategori / grupp</h3>
             <input
               type="text"

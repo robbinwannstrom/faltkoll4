@@ -23,7 +23,12 @@ import {
   fetchExerciseByCode,
   convertExerciseToProject,
 } from '../services/exerciseService';
-import { STANDARD_STUDENT_GROUPS, getLocalCustomStudentGroups } from '../services/userService';
+import { getLocalCustomStudentGroups } from '../services/userService';
+import {
+  getContextVocabulary,
+  resolveAppContextMode,
+  getDefaultGroupsForContext,
+} from '../utils/contextLabels';
 
 interface CreateProjectViewProps {
   onCancel: () => void;
@@ -46,7 +51,13 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   onStartExerciseProject,
   onOpenExerciseCreator,
 }) => {
-  const [creationMode, setCreationMode] = useState<'TEACHER_EXERCISE' | 'STANDARD_TEMPLATE'>('TEACHER_EXERCISE');
+  const activeContextMode = resolveAppContextMode(userSettings, currentUser);
+  const vocab = getContextVocabulary(activeContextMode);
+  const contextGroups = getDefaultGroupsForContext(activeContextMode);
+
+  const [creationMode, setCreationMode] = useState<'TEACHER_EXERCISE' | 'STANDARD_TEMPLATE'>(
+    activeContextMode === 'WORKPLACE' ? 'STANDARD_TEMPLATE' : 'TEACHER_EXERCISE'
+  );
   const [exercises, setExercises] = useState<TeacherExercise[]>([]);
   const [loadingExercises, setLoadingExercises] = useState(false);
   const [exerciseSearch, setExerciseSearch] = useState('');
@@ -206,10 +217,10 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           </button>
           <div>
             <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
-              Starta ny skolövning
+              {vocab.createProjectHeading}
             </h2>
             <p className="text-xs text-slate-400">
-              Välj en anpassad övning från din lärare eller starta från en standardmall.
+              {vocab.createProjectSubtitle}
             </p>
           </div>
         </div>
@@ -221,7 +232,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
             className="min-h-[44px] px-4 bg-orange-500/15 hover:bg-orange-500/25 text-orange-400 border border-orange-500/40 font-black text-xs rounded-xl flex items-center gap-2 cursor-pointer transition-all"
           >
             <BookOpen className="w-4 h-4" />
-            <span>Öppna Kreatörspanel (Skapa ny lärarövning)</span>
+            <span>{vocab.creatorButtonLong}</span>
           </button>
         )}
       </div>
@@ -238,7 +249,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           }`}
         >
           <BookOpen className="w-4 h-4 stroke-[2.5]" />
-          <span>Övning från läraren</span>
+          <span>{vocab.exerciseTabLabel}</span>
           {exercises.length > 0 && (
             <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-bold ${
               creationMode === 'TEACHER_EXERCISE' ? 'bg-black text-orange-400' : 'bg-[#222] text-slate-300'
@@ -258,7 +269,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           }`}
         >
           <HardHat className="w-4 h-4 stroke-[2.5]" />
-          <span>Standardmall / Eget projekt</span>
+          <span>{vocab.standardTemplateTabLabel}</span>
         </button>
       </div>
 
@@ -269,7 +280,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
           <div className="bg-[#181818] border-2 border-orange-500/40 rounded-3xl p-5 space-y-3 shadow-xl">
             <div className="flex items-center gap-2 text-orange-400 font-bold text-xs uppercase tracking-wider">
               <Key className="w-4 h-4" />
-              <span>Har du fått en övningskod av läraren?</span>
+              <span>{vocab.exerciseCodePrompt}</span>
             </div>
 
             <form onSubmit={handleLookupCodeAndStart} className="flex flex-col sm:flex-row gap-2">
@@ -280,7 +291,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                   setDirectCode(e.target.value.toUpperCase());
                   setCodeLookupError(null);
                 }}
-                placeholder="T.ex. GRUND-1, PLATTA-2 eller ÖVN-101"
+                placeholder="T.ex. GRUND-1, PLATTA-2 eller MALL-101"
                 className="flex-1 min-h-[46px] px-4 bg-[#101010] border border-[#333333] focus:border-orange-500 rounded-xl text-white font-mono font-bold text-sm uppercase placeholder:text-slate-500 outline-none"
               />
               <button
@@ -289,7 +300,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                 className="min-h-[46px] px-5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md shadow-orange-500/20 transition-all shrink-0"
               >
                 <Play className="w-4 h-4 fill-black" />
-                <span>{isStartingExercise ? 'Laddar övning...' : 'Hämta & starta'}</span>
+                <span>{isStartingExercise ? 'Laddar...' : 'Hämta & starta'}</span>
               </button>
             </form>
 
@@ -306,10 +317,10 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#262626] pb-3">
               <div>
                 <h3 className="font-black text-white text-base sm:text-lg">
-                  Tillgängliga övningar ({filteredExercises.length})
+                  Tillgängliga mallar / arbetsordrar ({filteredExercises.length})
                 </h3>
                 <p className="text-xs text-slate-400">
-                  Välj en övning nedan för att starta din egenkontroll direkt.
+                  Välj nedan för att starta din egenkontroll direkt.
                 </p>
               </div>
 
@@ -320,7 +331,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                   type="text"
                   value={exerciseSearch}
                   onChange={(e) => setExerciseSearch(e.target.value)}
-                  placeholder="Sök övning eller kod..."
+                  placeholder="Sök namn eller kod..."
                   className="w-full min-h-[38px] pl-9 pr-3 bg-[#121212] border border-[#333333] focus:border-orange-500 rounded-xl text-xs text-white placeholder-slate-500 outline-none"
                 />
               </div>
@@ -329,7 +340,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
             {/* Gruppchips */}
             <div className="space-y-1.5">
               <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
-                Filtrera efter utbildningsprogram:
+                Filtrera efter {vocab.groupLabel.toLowerCase()}:
               </span>
               <div className="flex flex-wrap items-center gap-1.5">
                 <button
@@ -345,7 +356,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                 </button>
                 {Array.from(
                   new Set([
-                    ...STANDARD_STUDENT_GROUPS,
+                    ...contextGroups,
                     ...getLocalCustomStudentGroups(),
                     ...exercises.map((e) => e.targetGroup).filter((g): g is string => !!g && g !== 'Alla grupper'),
                   ])
@@ -467,7 +478,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         {/* Step 1: Select Project Type */}
         <div className="bg-[#1a1a1a] border border-[#2e2e2e] rounded-3xl p-6 space-y-4 shadow-xl">
           <label className="block text-xs font-black text-orange-400 uppercase tracking-wider">
-            1. Välj typ av övning (Moment laddas automatiskt) *
+            1. Välj typ av arbete (Moment laddas automatiskt) *
           </label>
 
           <div className="grid grid-cols-1 gap-3">
@@ -518,7 +529,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         {/* Step 2: Project Metadata */}
         <div className="bg-[#1a1a1a] border border-[#2e2e2e] rounded-3xl p-6 space-y-4 shadow-xl">
           <label className="block text-xs font-black text-orange-400 uppercase tracking-wider">
-            2. Övningsuppgifter (Skolans referenser & ritning)
+            2. Projektuppgifter (Referenser, fastighet & ritning)
           </label>
 
           <div className="space-y-4">
@@ -642,7 +653,9 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               }`}
             >
               <div className="font-bold text-sm text-white flex items-center justify-between">
-                <span>👥 Grupparbete (Flera elever/kollegor)</span>
+                <span>
+                  👥 {activeContextMode === 'WORKPLACE' ? 'Arbetslag (Flera kollegor)' : 'Grupparbete (Flera deltagare)'}
+                </span>
                 {isGroupProject && <Check className="w-4 h-4 text-amber-400 stroke-[3]" />}
               </div>
               <p className="text-xs text-slate-400 mt-1">
@@ -657,7 +670,11 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
                 <label className="text-xs font-semibold text-amber-300">
                   Gruppkod för direkt delning (inga filer krävs):
                 </label>
-                <span className="text-[10px] text-slate-400 font-mono">Dela koden med dina klasskamrater</span>
+                <span className="text-[10px] text-slate-400 font-mono">
+                  {activeContextMode === 'WORKPLACE'
+                    ? 'Dela koden med ditt arbetslag'
+                    : 'Dela koden med din grupp'}
+                </span>
               </div>
               <input
                 type="text"
@@ -744,12 +761,12 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
             </button>
           </div>
 
-          {/* Varning om konsekvenser om man hoppar över */}
+          {/* Varning för konsekvenser om man hoppar över */}
           {preInspectionChoice === 'SKIP' && (
             <div className="p-4 rounded-2xl bg-[#1e1710] border-2 border-amber-500/50 space-y-2 text-xs animate-in fade-in">
               <div className="flex items-center gap-2 font-black text-amber-400 text-sm">
                 <AlertTriangle className="w-4 h-4" />
-                <span>Varning om konsekvenser om något händer:</span>
+                <span>Varning för konsekvenser om något händer:</span>
               </div>
               <p className="text-amber-100 leading-relaxed">
                 Utan fotodokumenterad försyn innan maskiner och tunga transporter rullar in riskerar du att hållas betalnings- och skadeståndsskyldig för redan befintliga sättningssprickor i fasad, sprucken asfalt eller skadade kantstenar och häckar vid en tvist med granne eller beställare.
@@ -770,7 +787,7 @@ export const CreateProjectView: React.FC<CreateProjectViewProps> = ({
             className="min-h-[55px] px-6 bg-orange-500 hover:bg-orange-400 active:scale-98 text-black font-black text-base rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-orange-500/20 transition-all touch-manipulation"
           >
             <Check className="w-5 h-5 stroke-[3]" />
-            <span>{isSubmitting ? 'Skapar övning...' : 'Skapa övning & starta'}</span>
+            <span>{isSubmitting ? 'Skapar...' : vocab.createButtonLabel}</span>
           </button>
 
           <button

@@ -90,8 +90,14 @@ Bas 1: ${side1_345} m | Bas 2: ${side2_345} m | Kryssmått (hypotenusa): ${hypot
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="bg-[#10131c] border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[95vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#10131c] border border-slate-700 rounded-2xl max-w-2xl w-full max-h-[95vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+      >
         {/* Header */}
         <div className="bg-[#141824] border-b border-slate-800 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -100,7 +106,7 @@ Bas 1: ${side1_345} m | Bas 2: ${side2_345} m | Kryssmått (hypotenusa): ${hypot
             </div>
             <div>
               <h3 className="text-base sm:text-lg font-bold text-white leading-tight">
-                Kryssmåtts-beräknare & 3-4-5
+                Kryssmåttsberäknare & 3-4-5
               </h3>
               <p className="text-xs text-slate-400">
                 Säkerställ 90° vinkelräthet och kontrollmät diagonalerna enligt AMA
@@ -139,7 +145,7 @@ Bas 1: ${side1_345} m | Bas 2: ${side2_345} m | Kryssmått (hypotenusa): ${hypot
                 : 'text-slate-400 hover:text-white'
             }`}
           >
-            2. 3-4-5 Metoden i fält
+            2. 3-4-5-metoden i fält
           </button>
         </div>
 

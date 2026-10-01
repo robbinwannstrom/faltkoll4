@@ -140,8 +140,14 @@ export const PhotoArchiveModal: React.FC<PhotoArchiveModalProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="bg-[#10131c] border border-slate-700/90 rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#10131c] border border-slate-700/90 rounded-2xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+      >
         {/* Header - Stora & tydliga primära åtgärder */}
         <div className="bg-[#141824] border-b border-slate-800 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-3">

@@ -179,7 +179,10 @@ export const PreInspectionTutorialModal: React.FC<PreInspectionTutorialModalProp
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto">
+    <div
+      onClick={handleSaveAndClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto"
+    >
       {/* Hidden camera input */}
       <input
         type="file"
@@ -190,7 +193,10 @@ export const PreInspectionTutorialModal: React.FC<PreInspectionTutorialModalProp
         className="hidden"
       />
 
-      <div className="w-full max-w-xl bg-[#0e111a] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[95vh]">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-xl bg-[#0e111a] border border-slate-700 rounded-2xl shadow-2xl overflow-hidden flex flex-col my-auto max-h-[95vh]"
+      >
         {/* Header */}
         <div className="bg-[#141824] border-b border-slate-800 p-4 flex items-center justify-between">
           <div className="flex items-center gap-3">

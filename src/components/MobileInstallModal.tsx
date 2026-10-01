@@ -105,8 +105,14 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200">
-      <div className="bg-[#121212] border-2 border-orange-500/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl my-auto font-sans">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto animate-in fade-in duration-200"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#121212] border-2 border-orange-500/60 rounded-3xl max-w-lg w-full p-6 sm:p-8 space-y-5 shadow-2xl my-auto font-sans"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-[#262626] pb-4">
           <div className="flex items-center gap-3">

@@ -132,7 +132,11 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
   // Försyn Exemption Multi-step confirmation state
   const [isExemptModalOpen, setIsExemptModalOpen] = useState(false);
   const [exemptStep, setExemptStep] = useState<1 | 2>(1);
-  const [exemptReason, setExemptReason] = useState('Praktisk skolövning i övningshall');
+  const [exemptReason, setExemptReason] = useState(
+    activeContextMode === 'WORKPLACE'
+      ? 'Inga anslutande fastigheter eller grannar berörs'
+      : 'Praktisk skolövning i övningshall / övningsbädd'
+  );
 
   // Cloud sync status
   const [isCloudSyncing, setIsCloudSyncing] = useState(false);
@@ -352,7 +356,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       signature: '',
     };
 
-    const signerName = userSettings.userName || 'Elev / Yrkeslärare';
+    const signerName = userSettings.userName || `${vocab.roleStudentShort} / ${vocab.roleTeacherShort}`;
 
     const updatedRecord: MomentRecord = {
       ...existing,
@@ -441,7 +445,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       canvas && hasDrawnMap.current[momentId]
         ? canvas.toDataURL('image/png')
         : existing.signatureImage || '';
-    const signerName = userSettings.userName || 'Elev / Yrkeslärare';
+    const signerName = userSettings.userName || `${vocab.roleStudentShort} / ${vocab.roleTeacherShort}`;
 
     const updatedRecord: MomentRecord = {
       ...existing,
@@ -540,11 +544,13 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
     const updated: Project = {
       ...project,
       preInspectionExempted: true,
-      preInspectionExemptReason: exemptReason || 'Praktisk skolövning',
+      preInspectionExemptReason: exemptReason || 'Undantag bekräftat',
     };
     onUpdateProject(updated);
     setIsExemptModalOpen(false);
-    setCloudSyncMsg('Försyn markerad som avböjd för denna övning. Du kan fortfarande utföra den när som helst!');
+    setCloudSyncMsg(
+      `Försyn markerad som avböjd för detta ${vocab.projectNoun}. Du kan fortfarande utföra den när som helst!`
+    );
     setTimeout(() => setCloudSyncMsg(null), 4000);
   };
 
@@ -1361,7 +1367,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                                     </div>
                                     <div>
                                       <span className="text-xs font-black text-orange-400 uppercase tracking-wider block">
-                                        Hjälpmedel: Registrerat kryssmått för övningen
+                                        Hjälpmedel: Registrerat kryssmått för {vocab.projectNounDefinite}
                                       </span>
                                       <p className="text-xs sm:text-sm text-slate-200 mt-0.5">
                                         {project.fieldMeasurements?.diagonal ? (
@@ -1907,8 +1913,14 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
 
       {/* 4. Avböj Försyn (Flera bekräftelsesteg) Modal */}
       {isExemptModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto">
-          <div className="bg-[#121212] border-2 border-orange-500/50 rounded-3xl max-w-lg w-full p-6 sm:p-7 space-y-6 shadow-2xl my-auto">
+        <div
+          onClick={() => setIsExemptModalOpen(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/90 backdrop-blur-md overflow-y-auto"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#121212] border-2 border-orange-500/50 rounded-3xl max-w-lg w-full p-6 sm:p-7 space-y-6 shadow-2xl my-auto"
+          >
             {/* Header */}
             <div className="flex items-center justify-between border-b border-[#262626] pb-4">
               <div className="flex items-center gap-3">
@@ -1920,7 +1932,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                     Avböj Försyn & Skadeguide
                   </h3>
                   <span className="text-xs text-orange-400 font-bold">
-                    Steg {exemptStep} av 2: Bekräfta undantag
+                    Steg {exemptStep} av 2 • Varning för konsekvenser
                   </span>
                 </div>
               </div>
@@ -1939,19 +1951,27 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                 <div className="bg-[#1a140f] border border-orange-500/40 rounded-2xl p-4 space-y-2">
                   <h4 className="text-sm font-black text-orange-400 flex items-center gap-1.5">
                     <AlertTriangle className="w-4 h-4 text-orange-400" />
-                    Varför är försyn så viktigt i branschen?
+                    Varning för konsekvenser utan försyn
                   </h4>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    I verkliga anläggningsarbeten är försyn (skadefotografering av grannfastigheters socklar, staket och asfalt före schaktstart) ett lagkrav för att skydda entreprenören mot falska skadeståndsanspråk.
+                    I anläggningsarbeten är försyn (skadefotografering av grannfastigheters socklar, staket och asfalt före schaktstart) ett viktigt skydd mot felaktiga skadeståndsanspråk.
                   </p>
                 </div>
 
                 <p className="text-xs sm:text-sm text-slate-300">
-                  Om detta är en <strong>övning på skolan</strong> i en övningsbädd där ingen grannfastighet berörs kan du avböja försynen för att kunna slutföra rapporten.
+                  {activeContextMode === 'WORKPLACE' ? (
+                    <>
+                      Om inga grannfastigheter berörs eller om försyn dokumenterats separat kan du avböja försynen här för att slutföra rapporten.
+                    </>
+                  ) : (
+                    <>
+                      Om detta är en <strong>övning</strong> där ingen grannfastighet berörs kan du avböja försynen för att slutföra rapporten.
+                    </>
+                  )}
                 </p>
 
                 <div className="bg-[#161616] border border-[#2a2a2a] rounded-xl p-3 text-[11px] text-slate-400">
-                  💡 <strong>Obs:</strong> Inget beslut försvinner permanent. Du kan när som helst ångra dig och komplettera med försynsfoton i efterhand!
+                  💡 <strong>Obs:</strong> Inget beslut låser dig permanent. Du kan när som helst ångra dig och komplettera med försynsfoton i efterhand!
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-2">
@@ -1978,24 +1998,26 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
               <div className="space-y-4">
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-300 block">
-                    Välj anledning till undantag för denna övning:
+                    Välj anledning till undantag:
                   </label>
                   <select
                     value={exemptReason}
                     onChange={(e) => setExemptReason(e.target.value)}
                     className="w-full min-h-[46px] px-3.5 bg-[#181818] border border-[#333333] focus:border-orange-500 rounded-xl text-white text-xs sm:text-sm outline-none"
                   >
-                    <option value="Praktisk skolövning i övningshall / övningsbädd">
-                      Praktisk skolövning i övningshall / övningsbädd
-                    </option>
                     <option value="Inga anslutande fastigheter eller grannar berörs">
                       Inga anslutande fastigheter eller grannar berörs
                     </option>
-                    <option value="Repetition / Delmoment utan yttre markpåverkan">
-                      Repetition / Delmoment utan yttre markpåverkan
+                    <option value="Arbete på friliggande tomt / eget område utan risk för granne">
+                      Arbete på friliggande tomt / eget område utan risk för granne
                     </option>
-                    <option value="Godkänt undantag av yrkeslärare">
-                      Godkänt undantag av yrkeslärare
+                    {activeContextMode !== 'WORKPLACE' && (
+                      <option value="Praktisk skolövning i övningshall / övningsbädd">
+                        Praktisk skolövning i övningshall / övningsbädd
+                      </option>
+                    )}
+                    <option value={`Godkänt undantag av ${vocab.roleTeacherShort.toLowerCase()}`}>
+                      Godkänt undantag av {vocab.roleTeacherShort.toLowerCase()}
                     </option>
                   </select>
                 </div>

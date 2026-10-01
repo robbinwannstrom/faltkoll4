@@ -45,6 +45,7 @@ interface StoredUser {
   email: string;
   displayName: string;
   role: 'STUDENT' | 'TEACHER' | 'SCHOOL_ADMIN' | 'ADMIN';
+  accountContext?: 'WORKPLACE' | 'APL' | 'SCHOOL';
   password?: string;
   schoolOrCompany?: string;
   studentGroup?: string;
@@ -142,30 +143,7 @@ const defaultState: CloudStorageState = {
       lastLogin: '2026-09-24 15:10',
     },
   ],
-  notifications: [
-    {
-      id: 'notif_welcome',
-      authorName: 'Johan Lindqvist',
-      authorRole: 'TEACHER',
-      title: 'Viktigt: Glöm inte kryssmått & toleranskontroll',
-      message:
-        'Hej alla elever! Kom ihåg att kontrollera kryssmått (max ±5 mm toleransdiff) och fota laseravvägningen på makadambädden innan gjutning eller formsättning påbörjas i veckans moment.',
-      priority: 'URGENT',
-      createdAt: '2026-09-24 08:30',
-      readBy: [],
-    },
-    {
-      id: 'notif_ama_info',
-      authorName: 'Johan Lindqvist',
-      authorRole: 'TEACHER',
-      title: 'AMA Anläggning 20 uppdaterad referens',
-      message:
-        'Vid kontroll av schaktbotten ska ni använda AMA tabell 13.5 för bärighet. Se till att anteckna lasermått direkt i fältblocket.',
-      priority: 'NORMAL',
-      createdAt: '2026-09-23 10:15',
-      readBy: [],
-    },
-  ],
+  notifications: [],
   projects: {},
 };
 
@@ -177,6 +155,14 @@ function loadStorage(): CloudStorageState {
       state = JSON.parse(raw);
       if (!Array.isArray(state.users)) {
         state.users = defaultState.users;
+      }
+      if (!Array.isArray(state.notifications)) {
+        state.notifications = [];
+      } else {
+        // Remove old hardcoded demo notifications so there is no phantom unread count
+        state.notifications = state.notifications.filter(
+          (n) => n.id !== 'notif_welcome' && n.id !== 'notif_ama_info'
+        );
       }
       if (!Array.isArray(state.exercises)) {
         state.exercises = [];
@@ -311,13 +297,27 @@ app.post('/api/auth/register', async (req, res) => {
   }
 
   const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+  const validRole =
+    role === 'TEACHER' || role === 'SCHOOL_ADMIN' || role === 'ADMIN' ? role : 'STUDENT';
+  const validContext =
+    req.body.accountContext === 'WORKPLACE' ||
+    req.body.accountContext === 'APL' ||
+    req.body.accountContext === 'SCHOOL'
+      ? req.body.accountContext
+      : 'WORKPLACE';
+
   const newUser: StoredUser = {
     id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     email: normalizedEmail,
     displayName: cleanName,
-    role: userRole,
+    role: validRole,
+    accountContext: validContext,
     password: cleanPassword,
-    schoolOrCompany: schoolOrCompany ? String(schoolOrCompany).trim() : 'Bygg- & Anläggningsutbildning',
+    schoolOrCompany: schoolOrCompany
+      ? String(schoolOrCompany).trim()
+      : validContext === 'WORKPLACE'
+      ? 'Anläggning & Entreprenad'
+      : 'Bygg- & Anläggningsutbildning',
     studentGroup: req.body.studentGroup ? String(req.body.studentGroup).trim() : undefined,
     schoolClass: req.body.schoolClass ? String(req.body.schoolClass).trim() : undefined,
     createdAt: now,
@@ -577,14 +577,21 @@ app.post('/api/users', async (req, res) => {
   }
 
   const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+  const validContext =
+    req.body.accountContext === 'WORKPLACE' ||
+    req.body.accountContext === 'APL' ||
+    req.body.accountContext === 'SCHOOL'
+      ? req.body.accountContext
+      : undefined;
   const newUser: StoredUser = {
     id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
     email: normalizedEmail,
     displayName: String(displayName).trim(),
     role: role === 'TEACHER' || role === 'SCHOOL_ADMIN' || role === 'ADMIN' ? role : 'STUDENT',
+    accountContext: validContext,
     password: password ? String(password).trim() : '1234',
-    schoolOrCompany: schoolOrCompany || 'Bygg & Anläggningsutbildning',
-    studentGroup: studentGroup ? String(studentGroup).trim() : 'Byggprogrammet (BA)',
+    schoolOrCompany: schoolOrCompany || 'Anläggning & Entreprenad',
+    studentGroup: studentGroup ? String(studentGroup).trim() : undefined,
     schoolClass: req.body.schoolClass ? String(req.body.schoolClass).trim() : undefined,
     teacherId: req.body.teacherId ? String(req.body.teacherId).trim() : undefined,
     createdAt: now,
@@ -619,6 +626,16 @@ app.put('/api/users/:id', async (req, res) => {
   if (email) user.email = String(email).trim().toLowerCase();
   if (schoolOrCompany !== undefined) user.schoolOrCompany = schoolOrCompany;
   if (studentGroup !== undefined) user.studentGroup = String(studentGroup).trim();
+  if (req.body.schoolClass !== undefined) user.schoolClass = String(req.body.schoolClass).trim();
+  if (req.body.teacherId !== undefined) user.teacherId = String(req.body.teacherId).trim();
+  if (req.body.notes !== undefined) user.notes = String(req.body.notes).trim();
+  if (
+    req.body.accountContext === 'WORKPLACE' ||
+    req.body.accountContext === 'APL' ||
+    req.body.accountContext === 'SCHOOL'
+  ) {
+    user.accountContext = req.body.accountContext;
+  }
   if (password) user.password = String(password).trim();
 
   saveStorage(cloudState);
@@ -1013,7 +1030,7 @@ async function startServer() {
     });
   } else {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: { middlewareMode: true, hmr: false, watch: null },
       appType: 'spa',
     });
     app.use(vite.middlewares);

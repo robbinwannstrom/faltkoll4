@@ -106,7 +106,10 @@ export const PhotoQuickMenuModal: React.FC<PhotoQuickMenuModalProps> = ({
   }, 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto"
+    >
       {/* Hidden file input for camera */}
       <input
         type="file"
@@ -117,7 +120,10 @@ export const PhotoQuickMenuModal: React.FC<PhotoQuickMenuModalProps> = ({
         className="hidden"
       />
 
-      <div className="bg-[#10131c] border border-slate-700/90 rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#10131c] border border-slate-700/90 rounded-2xl max-w-2xl w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+      >
         {/* Header */}
         <div className="bg-[#141824] border-b border-slate-800 p-4 sm:p-5 flex items-start justify-between gap-3">
           <div className="space-y-1">

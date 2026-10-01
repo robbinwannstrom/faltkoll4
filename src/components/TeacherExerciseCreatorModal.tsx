@@ -326,8 +326,14 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
   });
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto font-sans">
-      <div className="bg-[#141414] border border-[#2b2b2b] rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden my-auto">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 overflow-y-auto font-sans"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#141414] border border-[#2b2b2b] rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden my-auto"
+      >
         {/* ================= MODAL HEADER ================= */}
         <div className="p-4 sm:p-6 border-b border-[#242424] flex items-center justify-between shrink-0 bg-[#171717]">
           <div className="flex items-center gap-3">

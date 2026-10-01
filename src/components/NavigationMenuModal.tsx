@@ -83,21 +83,29 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
   currentUser,
   unreadNoticesCount = 0,
 }) => {
+  React.useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
 
   const activeContextMode = resolveAppContextMode(userSettings, currentUser);
   const vocab = getContextVocabulary(activeContextMode);
 
-  const handleSetMode = (mode: AppContextMode) => {
-    onUpdateUserSettings({
-      ...userSettings,
-      appContextMode: mode,
-    });
-  };
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-start bg-black/85 backdrop-blur-xs animate-in fade-in duration-200 font-sans">
-      <div className="bg-[#121212] border-r-2 border-[#262626] w-full max-w-sm sm:max-w-md h-full flex flex-col shadow-2xl overflow-y-auto">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-start bg-black/85 backdrop-blur-xs animate-in fade-in duration-200 font-sans"
+      onClick={onClose}
+    >
+      <div
+        className="bg-[#121212] border-r-2 border-[#262626] w-full max-w-sm sm:max-w-md h-full flex flex-col shadow-2xl overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="p-4 border-b border-[#262626] flex items-center justify-between bg-[#161616]">
           <div className="flex items-center gap-3">
@@ -118,6 +126,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
             type="button"
             onClick={onClose}
             className="w-9 h-9 rounded-xl bg-[#222222] hover:bg-[#2c2c2c] text-slate-300 flex items-center justify-center cursor-pointer transition-colors"
+            title="Stäng meny"
           >
             <X className="w-4 h-4" />
           </button>
@@ -139,10 +148,10 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
             </div>
             <div className="min-w-0">
               <div className="font-bold text-xs sm:text-sm text-white truncate leading-tight">
-                {currentUser?.displayName || userSettings.userName || 'Gästanvändare (Demo)'}
+                {currentUser?.displayName || userSettings.userName || 'Användare'}
               </div>
               <div className="text-[11px] text-slate-400 truncate">
-                {currentUser?.schoolOrCompany || userSettings.companyName || 'Direktstart utan inloggning'}
+                {currentUser?.schoolOrCompany || userSettings.companyName || vocab.modeTitle}
               </div>
             </div>
           </div>
@@ -177,51 +186,15 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
           )}
         </div>
 
-        {/* Snabbväxlare: Arbetsplats / APL / Skola & Layout */}
-        <div className="px-3 pb-2 space-y-2">
-          <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-2 space-y-1.5">
-            <div className="flex items-center justify-between px-1">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
-                Verksamhetsläge
-              </span>
-              <span className="text-[10px] text-orange-400 font-bold">
-                {vocab.modeTitle}
-              </span>
-            </div>
-            <div className="grid grid-cols-3 gap-1">
-              {(
-                [
-                  { id: 'WORKPLACE', label: '🏗️ Arbete' },
-                  { id: 'APL', label: '🤝 APL' },
-                  { id: 'SCHOOL', label: '🎓 Skola' },
-                ] as { id: AppContextMode; label: string }[]
-              ).map((m) => {
-                const isSelected = activeContextMode === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => handleSetMode(m.id)}
-                    className={`py-2 px-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
-                      isSelected
-                        ? 'bg-orange-500 text-black shadow-xs'
-                        : 'bg-[#121212] text-slate-400 hover:text-white border border-[#262626]'
-                    }`}
-                  >
-                    {m.label}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
+        {/* Snabbväxlare för Layout & Vy */}
+        <div className="px-3 pb-2">
           <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-2 space-y-1.5">
             <div className="flex items-center justify-between px-1">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
                 Layout & Vy
               </span>
-              <span className="text-[10px] text-slate-400 font-medium">
-                Välj visningsstil
+              <span className="text-[10px] text-orange-400 font-bold">
+                {vocab.modeTitle}
               </span>
             </div>
             <div className="grid grid-cols-4 gap-1">

@@ -135,9 +135,15 @@ export const ReportModal: React.FC<ReportModalProps> = ({ project, onClose }) =>
   };
 
   return (
-    <div className="fixed inset-0 z-50 overflow-y-auto bg-black/90 p-2 sm:p-6 backdrop-blur-md flex flex-col items-center">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 overflow-y-auto bg-black/90 p-2 sm:p-6 backdrop-blur-md flex flex-col items-center"
+    >
       {/* Top Action Bar (Hidden when printed) */}
-      <div className="w-full max-w-4xl bg-[#11141e] border border-slate-700/80 rounded-2xl p-3 sm:p-4 mb-4 flex flex-wrap items-center justify-between gap-3 shadow-xl print:hidden">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full max-w-4xl bg-[#11141e] border border-slate-700/80 rounded-2xl p-3 sm:p-4 mb-4 flex flex-wrap items-center justify-between gap-3 shadow-xl print:hidden"
+      >
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-slate-800 border border-slate-700 text-sky-400 flex items-center justify-center font-bold">
             <FileText className="w-5 h-5" />
@@ -227,6 +233,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ project, onClose }) =>
       {layoutStyle === 'AMA_STANDARD' && (
         <div
           id="printable-report"
+          onClick={(e) => e.stopPropagation()}
           className="w-full max-w-4xl bg-white text-slate-950 rounded-xl shadow-2xl p-6 sm:p-10 font-sans border border-slate-300 print:border-none print:shadow-none print:p-0 print:m-0 print:w-full space-y-8"
         >
           {/* Logo & Document Title */}
@@ -483,6 +490,7 @@ export const ReportModal: React.FC<ReportModalProps> = ({ project, onClose }) =>
       {layoutStyle === 'PHOTO_SUMMARY' && (
         <div
           id="printable-report"
+          onClick={(e) => e.stopPropagation()}
           className="w-full max-w-4xl bg-white text-slate-950 rounded-xl shadow-2xl p-6 sm:p-10 font-sans border border-slate-300 print:border-none print:shadow-none print:p-0 print:m-0 print:w-full space-y-8"
         >
           {/* Header */}
@@ -545,8 +553,17 @@ export const ReportModal: React.FC<ReportModalProps> = ({ project, onClose }) =>
 
       {/* Gmail Sending Modal with Explicit Confirmation Dialog (Mandatory per Skill guidelines) */}
       {isGmailModalOpen && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs">
-          <div className="bg-[#12141c] border border-orange-500/50 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95">
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsGmailModalOpen(false);
+          }}
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-xs"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#12141c] border border-orange-500/50 rounded-3xl max-w-lg w-full p-6 space-y-5 shadow-2xl animate-in zoom-in-95"
+          >
             <div className="flex items-center justify-between border-b border-slate-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center">

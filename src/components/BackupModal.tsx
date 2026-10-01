@@ -259,8 +259,14 @@ export const BackupModal: React.FC<BackupModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto">
-      <div className="bg-[#12141a] border border-[#2c2f38] rounded-3xl max-w-xl w-full p-5 sm:p-7 shadow-2xl space-y-6 my-auto">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#12141a] border border-[#2c2f38] rounded-3xl max-w-xl w-full p-5 sm:p-7 shadow-2xl space-y-6 my-auto"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-4">
           <div className="flex items-center gap-3">
@@ -499,8 +505,17 @@ export const BackupModal: React.FC<BackupModalProps> = ({
 
       {/* Confirmation Modal for Mutating/Cloud Actions (Mandatory per Skill guidelines) */}
       {pendingConfirmAction && (
-        <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs">
-          <div className="bg-[#151720] border-2 border-orange-500 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95">
+        <div
+          onClick={(e) => {
+            e.stopPropagation();
+            setPendingConfirmAction(null);
+          }}
+          className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/80 backdrop-blur-xs"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-[#151720] border-2 border-orange-500 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl animate-in zoom-in-95"
+          >
             <h4 className="text-lg font-black text-white flex items-center gap-2">
               <Cloud className="w-5 h-5 text-orange-400" />
               <span>{pendingConfirmAction.title}</span>

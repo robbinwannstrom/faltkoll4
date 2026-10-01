@@ -174,7 +174,10 @@ export const CollaborationModal: React.FC<CollaborationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto text-slate-100">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto text-slate-100"
+    >
       <input
         type="file"
         ref={fileInputRef}
@@ -183,7 +186,10 @@ export const CollaborationModal: React.FC<CollaborationModalProps> = ({
         className="hidden"
       />
 
-      <div className="bg-[#12151e] border border-slate-700/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-5 my-auto max-h-[92vh] overflow-y-auto">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#12151e] border border-slate-700/80 rounded-2xl max-w-lg w-full p-5 sm:p-6 shadow-2xl space-y-5 my-auto max-h-[92vh] overflow-y-auto"
+      >
         {/* Header */}
         <div className="flex items-start justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">

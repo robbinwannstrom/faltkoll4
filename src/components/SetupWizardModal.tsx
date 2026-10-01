@@ -107,8 +107,14 @@ export const SetupWizardModal: React.FC<SetupWizardModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto font-sans">
-      <div className="bg-[#121212] border-2 border-[#2c2c2c] rounded-3xl max-w-xl w-full p-5 sm:p-7 shadow-2xl space-y-6 my-auto max-h-[94vh] overflow-y-auto">
+    <div
+      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-black/85 backdrop-blur-md overflow-y-auto font-sans"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-[#121212] border-2 border-[#2c2c2c] rounded-3xl max-w-xl w-full p-5 sm:p-7 shadow-2xl space-y-6 my-auto max-h-[94vh] overflow-y-auto"
+      >
         {/* Step Indicator Header */}
         <div className="flex items-center justify-between border-b border-[#262626] pb-3">
           <div className="flex items-center gap-2">
@@ -577,12 +583,12 @@ export const SetupWizardModal: React.FC<SetupWizardModalProps> = ({
               </button>
             </div>
 
-            {/* Varning om konsekvenser om man hoppar över */}
+            {/* Varning för konsekvenser om man hoppar över */}
             {preInspectionPref === 'SKIP_DEFAULT' && (
               <div className="p-3.5 rounded-2xl bg-[#1e1710] border border-amber-600/50 text-xs text-amber-200 space-y-1.5 animate-in fade-in">
                 <div className="flex items-center gap-2 font-bold text-amber-300">
                   <AlertTriangle className="w-4 h-4 text-amber-400" />
-                  <span>Varning om konsekvenser om något händer:</span>
+                  <span>Varning för konsekvenser om något händer:</span>
                 </div>
                 <p className="text-amber-100/90 leading-relaxed">
                   Utan fotodokumenterad försyn innan maskiner och tunga transporter rullar in riskerar du att hållas betalningsskyldig för befintliga sprickor i fasad, sprucken asfalt eller kantstenar vid en tvist med granne eller beställare.
