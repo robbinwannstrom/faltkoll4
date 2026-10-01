@@ -40,6 +40,7 @@ export interface MomentRecord {
   status: MomentStatus;
   comment: string;
   signature: string;
+  signatureImage?: string;
   structuredChecks?: string[];
   photoBase64?: string;
   photos?: MomentPhoto[];
@@ -201,10 +202,27 @@ export interface TeacherExercise {
 export type PhotoSaveMode = 'APP_ONLY' | 'APP_AND_DOWNLOAD';
 export type ReportLayoutStyle = 'AMA_STANDARD' | 'PHOTO_SUMMARY';
 export type AppExperienceLevel = 'STUDENT_MAX' | 'STANDARD' | 'PRO_MINIMAL';
-export type AppLayoutMode = 'FIELD_CLEAR' | 'COMPACT' | 'GUIDED_STEP';
-export type AppColorPalette = 'ORANGE_WORK' | 'SAFETY_YELLOW' | 'DAYLIGHT_HIGH_CONTRAST' | 'NORDIC_BLUE';
+export type AppLayoutMode = 'SIMPLE_LIST' | 'COMPACT' | 'FIELD_CLEAR' | 'GUIDED_STEP';
+export type AppColorPalette =
+  | 'ORANGE_WORK'
+  | 'SAFETY_YELLOW'
+  | 'DAYLIGHT_HIGH_CONTRAST'
+  | 'NORDIC_BLUE'
+  | 'EMERALD_FOREST'
+  | 'CUSTOM';
 export type PreInspectionPreference = 'ALWAYS_ASK' | 'ALWAYS_DO' | 'SKIP_DEFAULT';
 export type UserUsageProfile = 'PRIVATE' | 'CONTRACTOR' | 'SCHOOL';
+export type AppContextMode = 'WORKPLACE' | 'APL' | 'SCHOOL';
+
+export interface CustomColorTheme {
+  id: string;
+  name: string;
+  accentHex: string;
+  bgHex: string;
+  cardHex: string;
+  buttonTextHex: string;
+  isLightMode?: boolean;
+}
 
 export interface UserSettings {
   userName: string;
@@ -216,10 +234,14 @@ export interface UserSettings {
   enableTutorialGuide?: boolean;
   reportLayout?: ReportLayoutStyle;
   hasSeenTutorialPrompt?: boolean;
+  // Verksamhetsläge: Arbetsplats/Entreprenad, APL/Lärling eller Skola
+  appContextMode?: AppContextMode;
   // Nya utökade inställningar & funktionsväljare
   appExperienceLevel?: AppExperienceLevel;
   appLayoutMode?: AppLayoutMode;
   colorPalette?: AppColorPalette;
+  activeCustomTheme?: CustomColorTheme;
+  savedCustomThemes?: CustomColorTheme[];
   preInspectionPreference?: PreInspectionPreference;
   userUsageProfile?: UserUsageProfile;
   featureCrossMeasure?: boolean;
@@ -252,15 +274,16 @@ export interface UserAccount {
   email: string;
   displayName: string;
   role: UserRole;
+  accountContext?: AppContextMode; // 'WORKPLACE' (Arbetsplats) | 'APL' (APL/Lärling) | 'SCHOOL' (Skola)
   password?: string;
   schoolOrCompany?: string;
-  studentGroup?: string; // T.ex. "Byggprogrammet", "Anläggare", "Vuxenutbildning (Vuxen)", "Gymnasie"
-  schoolClass?: string;  // T.ex. "BA25-ANL", "VUX26"
-  teacherId?: string;    // Ansvarig lärare
-  notes?: string;        // Lärarens eller adminens notering på kontot
-  educationLevel?: EducationLevelType; // T.ex. GYMNASIE eller VUXEN
-  specialization?: ProgramSpecializationType; // T.ex. BYGGPROGRAMMET eller ANLAGGARE
-  teacherNote?: string; // Lärarens eller adminens notering på kontot
+  studentGroup?: string; // Grupp / Arbetslag
+  schoolClass?: string;  // Klass / Projekt- eller Avdelningskod
+  teacherId?: string;    // Ansvarig lärare / Arbetsledare / Handledare
+  notes?: string;        // Notering på kontot
+  educationLevel?: EducationLevelType;
+  specialization?: ProgramSpecializationType;
+  teacherNote?: string;
   createdAt: string;
   lastLogin?: string;
 }

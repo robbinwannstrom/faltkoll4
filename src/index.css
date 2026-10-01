@@ -185,3 +185,90 @@ button, input, select, textarea {
 .palette-blue .border-orange-800\/80 {
   border-color: #0369a1 !important;
 }
+
+/* Palette 5: Emerald Forest */
+.palette-emerald {
+  --color-accent: #10b981;
+}
+.palette-emerald .bg-orange-500,
+.palette-emerald .bg-amber-500 {
+  background-color: #10b981 !important;
+  color: #000000 !important;
+}
+.palette-emerald .hover\:bg-orange-400:hover,
+.palette-emerald .hover\:bg-amber-400:hover {
+  background-color: #34d399 !important;
+  color: #000000 !important;
+}
+.palette-emerald .text-orange-400,
+.palette-emerald .text-amber-400 {
+  color: #34d399 !important;
+}
+.palette-emerald .text-orange-300,
+.palette-emerald .text-amber-300 {
+  color: #6ee7b7 !important;
+}
+.palette-emerald .border-orange-500,
+.palette-emerald .border-orange-500\/40,
+.palette-emerald .border-amber-500\/40 {
+  border-color: #10b981 !important;
+}
+.palette-emerald .border-orange-400 {
+  border-color: #34d399 !important;
+}
+.palette-emerald .bg-orange-950,
+.palette-emerald .bg-orange-950\/60,
+.palette-emerald .bg-orange-950\/80 {
+  background-color: #064e3b !important;
+}
+.palette-emerald .border-orange-800,
+.palette-emerald .border-orange-800\/80 {
+  border-color: #047857 !important;
+}
+
+/* Palette 6: Custom User Theme (Driven by CSS variables on documentElement) */
+.palette-custom body,
+.palette-custom .bg-\[\#121212\],
+.palette-custom .bg-\[\#0e0e0e\] {
+  background-color: var(--custom-bg, #121212) !important;
+}
+.palette-custom header,
+.palette-custom .bg-\[\#1a1a1a\],
+.palette-custom .bg-\[\#181818\],
+.palette-custom .bg-\[\#161616\],
+.palette-custom .bg-\[\#141414\],
+.palette-custom .bg-\[\#1c1c1c\] {
+  background-color: var(--custom-card, #1a1a1a) !important;
+}
+.palette-custom .bg-orange-500,
+.palette-custom .bg-amber-500 {
+  background-color: var(--custom-accent, #f97316) !important;
+  color: var(--custom-btn-text, #000000) !important;
+}
+.palette-custom .hover\:bg-orange-400:hover,
+.palette-custom .hover\:bg-amber-400:hover {
+  background-color: var(--custom-accent, #f97316) !important;
+  filter: brightness(1.1);
+  color: var(--custom-btn-text, #000000) !important;
+}
+.palette-custom .text-orange-400,
+.palette-custom .text-orange-300,
+.palette-custom .text-amber-400 {
+  color: var(--custom-accent, #f97316) !important;
+}
+.palette-custom .border-orange-500,
+.palette-custom .border-orange-500\/40,
+.palette-custom .border-orange-500\/50,
+.palette-custom .border-orange-500\/60,
+.palette-custom .border-orange-400,
+.palette-custom .border-orange-800,
+.palette-custom .border-orange-800\/80 {
+  border-color: var(--custom-accent, #f97316) !important;
+}
+.palette-custom .bg-orange-950,
+.palette-custom .bg-orange-950\/60,
+.palette-custom .bg-orange-950\/80,
+.palette-custom .bg-orange-500\/15,
+.palette-custom .bg-orange-500\/20 {
+  background-color: color-mix(in srgb, var(--custom-accent, #f97316) 18%, transparent) !important;
+}

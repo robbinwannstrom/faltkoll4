@@ -6,7 +6,10 @@ import {
   PreInspectionPreference,
   ProjectType,
   UserAccount,
+  AppContextMode,
+  CustomColorTheme,
 } from '../types';
+import { getContextVocabulary, resolveAppContextMode } from '../utils/contextLabels';
 import {
   X,
   Sliders,
@@ -50,7 +53,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   currentUser,
 }) => {
   const isStudentAccount = currentUser?.role === 'STUDENT';
-  const [activeTab, setActiveTab] = useState<'QR_MOBILE' | 'LAYOUT' | 'PALETTE' | 'PREINSPECTION' | 'PHOTO' | 'PROFILE'>('QR_MOBILE');
+  const [activeTab, setActiveTab] = useState<'QR_MOBILE' | 'LAYOUT' | 'PALETTE' | 'PREINSPECTION' | 'PHOTO' | 'PROFILE'>('LAYOUT');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
   const [customUrl, setCustomUrl] = useState<string>(userSettings.customDeployUrl || '');
@@ -73,8 +76,30 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   }, [isOpen, activeUrl]);
 
   // Form states initialized from userSettings
-  const [layoutMode, setLayoutMode] = useState<AppLayoutMode>(userSettings.appLayoutMode || 'FIELD_CLEAR');
+  const [contextMode, setContextMode] = useState<AppContextMode>(
+    resolveAppContextMode(userSettings, currentUser)
+  );
+  const [layoutMode, setLayoutMode] = useState<AppLayoutMode>(userSettings.appLayoutMode || 'SIMPLE_LIST');
   const [palette, setPalette] = useState<AppColorPalette>(userSettings.colorPalette || 'ORANGE_WORK');
+  const [customAccent, setCustomAccent] = useState<string>(
+    userSettings.activeCustomTheme?.accentHex || '#f97316'
+  );
+  const [customBg, setCustomBg] = useState<string>(
+    userSettings.activeCustomTheme?.bgHex || '#121212'
+  );
+  const [customCard, setCustomCard] = useState<string>(
+    userSettings.activeCustomTheme?.cardHex || '#1a1a1a'
+  );
+  const [customBtnText, setCustomBtnText] = useState<string>(
+    userSettings.activeCustomTheme?.buttonTextHex || '#000000'
+  );
+  const [customThemeName, setCustomThemeName] = useState<string>(
+    userSettings.activeCustomTheme?.name || 'Mitt Eget Färgtema'
+  );
+  const [savedThemes, setSavedThemes] = useState<CustomColorTheme[]>(
+    userSettings.savedCustomThemes || []
+  );
+  const [themeSavedFeedback, setThemeSavedFeedback] = useState<string | null>(null);
   const [preInspPref, setPreInspPref] = useState<PreInspectionPreference>(userSettings.preInspectionPreference || 'ALWAYS_ASK');
   const [requirePhoto, setRequirePhoto] = useState<boolean>(!!userSettings.requirePhotoToComplete);
   const [saveToGallery, setSaveToGallery] = useState<boolean>(!!userSettings.saveToDeviceGallery);
@@ -83,13 +108,25 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [companyName, setCompanyName] = useState<string>(userSettings.companyName || '');
   const [preferredType, setPreferredType] = useState<ProjectType | 'ALL'>(userSettings.preferredProjectType || 'ALL');
 
+  const vocab = getContextVocabulary(contextMode);
+
   if (!isOpen) return null;
 
   const handleApplyChanges = (partial?: Partial<UserSettings>) => {
     const updated: UserSettings = {
       ...userSettings,
+      appContextMode: contextMode,
       appLayoutMode: layoutMode,
       colorPalette: palette,
+      activeCustomTheme: {
+        id: userSettings.activeCustomTheme?.id || 'custom_active',
+        name: customThemeName.trim() || 'Mitt Eget Färgtema',
+        accentHex: customAccent,
+        bgHex: customBg,
+        cardHex: customCard,
+        buttonTextHex: customBtnText,
+      },
+      savedCustomThemes: savedThemes,
       preInspectionPreference: preInspPref,
       requirePhotoToComplete: requirePhoto,
       saveToDeviceGallery: saveToGallery,
@@ -101,6 +138,79 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       ...partial,
     };
     onUpdateUserSettings(updated);
+  };
+
+  const handleSelectContextMode = (newMode: AppContextMode) => {
+    setContextMode(newMode);
+    handleApplyChanges({ appContextMode: newMode });
+  };
+
+  const handleUpdateLiveCustomColor = (
+    field: 'accent' | 'bg' | 'card' | 'btnText',
+    val: string
+  ) => {
+    const nextAccent = field === 'accent' ? val : customAccent;
+    const nextBg = field === 'bg' ? val : customBg;
+    const nextCard = field === 'card' ? val : customCard;
+    const nextBtnText = field === 'btnText' ? val : customBtnText;
+
+    if (field === 'accent') setCustomAccent(val);
+    if (field === 'bg') setCustomBg(val);
+    if (field === 'card') setCustomCard(val);
+    if (field === 'btnText') setCustomBtnText(val);
+    setPalette('CUSTOM');
+
+    handleApplyChanges({
+      colorPalette: 'CUSTOM',
+      activeCustomTheme: {
+        id: 'custom_live',
+        name: customThemeName.trim() || 'Mitt Eget Färgtema',
+        accentHex: nextAccent,
+        bgHex: nextBg,
+        cardHex: nextCard,
+        buttonTextHex: nextBtnText,
+      },
+    });
+  };
+
+  const handleSaveCustomPreset = () => {
+    const newPreset: CustomColorTheme = {
+      id: 'theme_' + Date.now(),
+      name: customThemeName.trim() || `Eget tema ${savedThemes.length + 1}`,
+      accentHex: customAccent,
+      bgHex: customBg,
+      cardHex: customCard,
+      buttonTextHex: customBtnText,
+    };
+    const nextSaved = [newPreset, ...savedThemes.filter((t) => t.name !== newPreset.name)];
+    setSavedThemes(nextSaved);
+    setPalette('CUSTOM');
+    handleApplyChanges({
+      colorPalette: 'CUSTOM',
+      activeCustomTheme: newPreset,
+      savedCustomThemes: nextSaved,
+    });
+    setThemeSavedFeedback(`Temat "${newPreset.name}" är sparat och aktiverat!`);
+    setTimeout(() => setThemeSavedFeedback(null), 3500);
+  };
+
+  const handleApplySavedPreset = (preset: CustomColorTheme) => {
+    setCustomThemeName(preset.name);
+    setCustomAccent(preset.accentHex);
+    setCustomBg(preset.bgHex);
+    setCustomCard(preset.cardHex);
+    setCustomBtnText(preset.buttonTextHex);
+    setPalette('CUSTOM');
+    handleApplyChanges({
+      colorPalette: 'CUSTOM',
+      activeCustomTheme: preset,
+    });
+  };
+
+  const handleDeleteSavedPreset = (id: string) => {
+    const nextSaved = savedThemes.filter((t) => t.id !== id);
+    setSavedThemes(nextSaved);
+    handleApplyChanges({ savedCustomThemes: nextSaved });
   };
 
   const handleSelectLayout = (mode: AppLayoutMode) => {
@@ -334,115 +444,216 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               </div>
             </div>
           )}
-          {/* TAB 1: LAYOUT & TYDLIGHET */}
+          {/* TAB 1: LAYOUT & VERKSAMHETSLÄGE */}
           {activeTab === 'LAYOUT' && (
-            <div className="space-y-4">
+            <div className="space-y-6">
+              {/* VERKSAMHETSLÄGE: ARBETE vs APL vs SKOLA */}
+              <div className="space-y-3 pb-5 border-b border-[#262626]">
+                <div>
+                  <h3 className="text-base font-black text-white">
+                    1. Verksamhetsläge (Arbetsplats, APL eller Skola)
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Styr om appen ska visa ren entreprenadterminologi för yrkesarbetare (helt utan skol- och elevbegrepp), APL/Lärlingsläge eller Skolläge.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectContextMode('WORKPLACE')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                      contextMode === 'WORKPLACE'
+                        ? 'bg-orange-500/15 border-orange-500 text-white'
+                        : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-white">Arbetsplats & Företag</span>
+                      {contextMode === 'WORKPLACE' && <Check className="w-4 h-4 text-orange-400 stroke-[3]" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Renodlat yrkesläge för anläggare, platschefer och entreprenörer. Inga elev- eller skoltermer visas.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectContextMode('APL')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                      contextMode === 'APL'
+                        ? 'bg-orange-500/15 border-orange-500 text-white'
+                        : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-white">APL & Lärling</span>
+                      {contextMode === 'APL' && <Check className="w-4 h-4 text-orange-400 stroke-[3]" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      För arbetsplatser med lärlingar och APL-handledare. Anpassade termer för handledning på bygget.
+                    </p>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSelectContextMode('SCHOOL')}
+                    className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                      contextMode === 'SCHOOL'
+                        ? 'bg-orange-500/15 border-orange-500 text-white'
+                        : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-black text-sm text-white">Skola & Utbildning</span>
+                      {contextMode === 'SCHOOL' && <Check className="w-4 h-4 text-orange-400 stroke-[3]" />}
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      För yrkeslärare, skoladmin och elever med övningskoder, klasser och provläge.
+                    </p>
+                  </button>
+                </div>
+              </div>
+
               <div>
-                <h3 className="text-base font-black text-white">Välj App-Layout</h3>
+                <h3 className="text-base font-black text-white">2. Välj App-Layout & Detaljnivå</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Bestäm hur information och knappar ska presenteras. Du kan när som helst byta för att få maximal läsbarhet.
+                  Bestäm hur information och knappar ska presenteras i fält.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-3">
-                {/* 1. Fältläge (Maximal Tydlighet) */}
+              <div className="grid grid-cols-1 gap-2.5">
+                {/* 1. Enkel Lista (Ingen Bling) */}
                 <button
                   type="button"
-                  onClick={() => handleSelectLayout('FIELD_CLEAR')}
-                  className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                    layoutMode === 'FIELD_CLEAR'
-                      ? 'bg-orange-500/10 border-orange-500 text-white ring-1 ring-orange-500/50'
+                  onClick={() => handleSelectLayout('SIMPLE_LIST')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    layoutMode === 'SIMPLE_LIST'
+                      ? 'bg-orange-500/10 border-orange-500 text-white'
                       : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-base text-white">
-                          🚜 Fältläge (Maximal Tydlighet)
+                        <span className="font-bold text-sm sm:text-base text-white">
+                          Enkel Lista (Ingen Bling)
                         </span>
-                        <span className="text-[10px] font-black uppercase tracking-wider bg-orange-500 text-black px-2 py-0.5 rounded-full">
+                        <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-500 text-black px-2 py-0.5 rounded-md">
                           Standard
                         </span>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Extra stora touch-ytor, alltid fulla svenska texter på alla knappar (inga svårtolkade miniatyrikoner) och extra kontrast för arbete utomhus med handskar.
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Ren, avskalad listvy utan skuggor, stora rutor eller visuellt brus. Filter och extraverktyg ligger samlade under knappar.
                       </p>
                     </div>
                     <div
-                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
-                        layoutMode === 'FIELD_CLEAR'
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                        layoutMode === 'SIMPLE_LIST'
                           ? 'border-orange-500 bg-orange-500 text-black'
                           : 'border-[#444] bg-[#121212]'
                       }`}
                     >
-                      {layoutMode === 'FIELD_CLEAR' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      {layoutMode === 'SIMPLE_LIST' && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
                   </div>
                 </button>
 
-                {/* 2. Kompakt Arbetsledarläge */}
+                {/* 2. Kompakt Tabellvy */}
                 <button
                   type="button"
                   onClick={() => handleSelectLayout('COMPACT')}
-                  className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
                     layoutMode === 'COMPACT'
-                      ? 'bg-orange-500/10 border-orange-500 text-white ring-1 ring-orange-500/50'
+                      ? 'bg-orange-500/10 border-orange-500 text-white'
                       : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-base text-white">
-                          📋 Kompakt Arbetsledarläge
+                        <span className="font-bold text-sm sm:text-base text-white">
+                          Kompakt Tabellvy
                         </span>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Tätare rader och mer koncentrerad översikt. Passar vana användare som snabbt vill granska flera moment samtidigt utan onödigt rullande.
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Extra täta rader för maximal överblick när du vill se många projekt och moment på skärmen samtidigt.
                       </p>
                     </div>
                     <div
-                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
                         layoutMode === 'COMPACT'
                           ? 'border-orange-500 bg-orange-500 text-black'
                           : 'border-[#444] bg-[#121212]'
                       }`}
                     >
-                      {layoutMode === 'COMPACT' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      {layoutMode === 'COMPACT' && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
                   </div>
                 </button>
 
-                {/* 3. Guidat Läge (Steg-för-steg) */}
+                {/* 3. Stora Fältkort */}
                 <button
                   type="button"
-                  onClick={() => handleSelectLayout('GUIDED_STEP')}
-                  className={`p-4 sm:p-5 rounded-2xl border-2 text-left transition-all cursor-pointer ${
-                    layoutMode === 'GUIDED_STEP'
-                      ? 'bg-orange-500/10 border-orange-500 text-white ring-1 ring-orange-500/50'
+                  onClick={() => handleSelectLayout('FIELD_CLEAR')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    layoutMode === 'FIELD_CLEAR'
+                      ? 'bg-orange-500/10 border-orange-500 text-white'
                       : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
                   }`}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-black text-base text-white">
-                          🎓 Guidat Steg-för-steg (Utbildning)
+                        <span className="font-bold text-sm sm:text-base text-white">
+                          Stora Fältkort (Handskläge)
                         </span>
                       </div>
-                      <p className="text-xs text-slate-300 leading-relaxed">
-                        Maximalt pedagogiskt stöd med fällande hjälprutor, yrkeslärarens råd och AMA-tolkningar förklarade i detalj direkt vid varje delmoment.
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Större kort och extra breda knappar anpassade för arbete utomhus med handskar.
                       </p>
                     </div>
                     <div
-                      className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                        layoutMode === 'FIELD_CLEAR'
+                          ? 'border-orange-500 bg-orange-500 text-black'
+                          : 'border-[#444] bg-[#121212]'
+                      }`}
+                    >
+                      {layoutMode === 'FIELD_CLEAR' && <Check className="w-3 h-3 stroke-[3]" />}
+                    </div>
+                  </div>
+                </button>
+
+                {/* 4. Steg-för-steg (Fokusvy) */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectLayout('GUIDED_STEP')}
+                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                    layoutMode === 'GUIDED_STEP'
+                      ? 'bg-orange-500/10 border-orange-500 text-white'
+                      : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-sm sm:text-base text-white">
+                          Steg-för-steg (Fokusvy)
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 leading-relaxed">
+                        Visar utförliga instruktioner och hjälptexter direkt vid varje delmoment.
+                      </p>
+                    </div>
+                    <div
+                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
                         layoutMode === 'GUIDED_STEP'
                           ? 'border-orange-500 bg-orange-500 text-black'
                           : 'border-[#444] bg-[#121212]'
                       }`}
                     >
-                      {layoutMode === 'GUIDED_STEP' && <Check className="w-3.5 h-3.5 stroke-[3]" />}
+                      {layoutMode === 'GUIDED_STEP' && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
                   </div>
                 </button>
@@ -548,6 +759,265 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     Stålgrå och marinblå företagsstil för entreprenader och besiktning.
                   </p>
                 </button>
+
+                {/* 5. Maskingrön / Skog */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectPalette('EMERALD_FOREST')}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    palette === 'EMERALD_FOREST'
+                      ? 'bg-emerald-500/15 border-emerald-400 text-white ring-1 ring-emerald-400'
+                      : 'bg-[#181818] border-[#2c2c2c] hover:border-[#3c3c3c]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="w-5 h-5 rounded-full bg-emerald-500 shadow-sm border border-emerald-300"></span>
+                      <span className="font-bold text-sm text-white">Anläggningsgrön</span>
+                    </div>
+                    {palette === 'EMERALD_FOREST' && <Check className="w-4 h-4 text-emerald-400 stroke-[3]" />}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Lugn och tydlig smaragdgrön kontrast mot mörk skifferbakgrund.
+                  </p>
+                </button>
+
+                {/* 6. Eget Custom Färgtema */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectPalette('CUSTOM')}
+                  className={`p-4 rounded-2xl border-2 text-left transition-all cursor-pointer ${
+                    palette === 'CUSTOM'
+                      ? 'bg-orange-500/15 border-orange-500 text-white ring-1 ring-orange-500'
+                      : 'bg-[#181818] border-[#2c2c2c] hover:border-[#3c3c3c]'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span
+                        className="w-5 h-5 rounded-full shadow-sm border border-white/40"
+                        style={{ backgroundColor: customAccent }}
+                      ></span>
+                      <span className="font-bold text-sm text-white">Eget Färgtema (Custom)</span>
+                    </div>
+                    {palette === 'CUSTOM' && <Check className="w-4 h-4 text-orange-400 stroke-[3]" />}
+                  </div>
+                  <p className="text-xs text-slate-400 mt-2">
+                    Justera accentfärg, bakgrund och paneler helt själv och spara dina favoriter.
+                  </p>
+                </button>
+              </div>
+
+              {/* CUSTOM COLOR STUDIO */}
+              <div className="mt-4 p-5 rounded-2xl bg-[#161616] border border-[#2c2c2c] space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#262626] pb-3">
+                  <div>
+                    <h4 className="text-sm font-black text-white flex items-center gap-2">
+                      <Palette className="w-4 h-4 text-orange-400" />
+                      <span>Skapa & Spara Eget Färgtema (Custom)</span>
+                    </h4>
+                    <p className="text-xs text-slate-400">
+                      Välj exakt de färger du eller ditt företag vill ha. Ändringarna syns direkt!
+                    </p>
+                  </div>
+                  <span className="text-[11px] font-mono text-slate-400">
+                    {palette === 'CUSTOM' ? 'Aktivt läge: Custom' : 'Klicka på en färg för att aktivera'}
+                  </span>
+                </div>
+
+                {/* Snabbval för accentfärg */}
+                <div className="space-y-1.5">
+                  <span className="text-xs font-bold text-slate-300 block">
+                    Snabbval för accentfärg:
+                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {[
+                      { label: 'Varselorange', hex: '#f97316', text: '#000000' },
+                      { label: 'Maskingul', hex: '#eab308', text: '#000000' },
+                      { label: 'Smaragdgrön', hex: '#10b981', text: '#000000' },
+                      { label: 'Himmelsblå', hex: '#0ea5e9', text: '#000000' },
+                      { label: 'Kungsblå', hex: '#3b82f6', text: '#ffffff' },
+                      { label: 'Rubinröd', hex: '#ef4444', text: '#ffffff' },
+                      { label: 'Violett', hex: '#8b5cf6', text: '#ffffff' },
+                      { label: 'Turkosa', hex: '#14b8a6', text: '#000000' },
+                    ].map((sw) => (
+                      <button
+                        key={sw.hex}
+                        type="button"
+                        onClick={() => {
+                          setCustomAccent(sw.hex);
+                          setCustomBtnText(sw.text);
+                          setPalette('CUSTOM');
+                          handleApplyChanges({
+                            colorPalette: 'CUSTOM',
+                            activeCustomTheme: {
+                              id: 'custom_swatch',
+                              name: customThemeName.trim() || sw.label,
+                              accentHex: sw.hex,
+                              bgHex: customBg,
+                              cardHex: customCard,
+                              buttonTextHex: sw.text,
+                            },
+                          });
+                        }}
+                        className="px-2.5 py-1.5 rounded-xl bg-[#121212] hover:bg-[#202020] border border-[#333] text-xs font-bold text-slate-200 flex items-center gap-2 cursor-pointer transition-all"
+                      >
+                        <span
+                          className="w-3.5 h-3.5 rounded-full border border-white/20"
+                          style={{ backgroundColor: sw.hex }}
+                        />
+                        <span>{sw.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Detaljerade färgväljare */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="p-3 rounded-xl bg-[#121212] border border-[#2a2a2a] flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-white block">1. Accent- & Knappfärg</span>
+                      <span className="text-[11px] font-mono text-slate-400">{customAccent}</span>
+                    </div>
+                    <input
+                      type="color"
+                      value={customAccent}
+                      onChange={(e) => handleUpdateLiveCustomColor('accent', e.target.value)}
+                      className="w-11 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                    />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#121212] border border-[#2a2a2a] flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-white block">2. Huvudbakgrund</span>
+                      <span className="text-[11px] font-mono text-slate-400">{customBg}</span>
+                    </div>
+                    <input
+                      type="color"
+                      value={customBg}
+                      onChange={(e) => handleUpdateLiveCustomColor('bg', e.target.value)}
+                      className="w-11 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                    />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#121212] border border-[#2a2a2a] flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-white block">3. Kort- & Panelytor</span>
+                      <span className="text-[11px] font-mono text-slate-400">{customCard}</span>
+                    </div>
+                    <input
+                      type="color"
+                      value={customCard}
+                      onChange={(e) => handleUpdateLiveCustomColor('card', e.target.value)}
+                      className="w-11 h-10 rounded-lg cursor-pointer bg-transparent border-0"
+                    />
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-[#121212] border border-[#2a2a2a] flex items-center justify-between gap-3">
+                    <div>
+                      <span className="text-xs font-bold text-white block">4. Text på knappar</span>
+                      <span className="text-[11px] text-slate-400">Kontrast på accentknapp</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateLiveCustomColor('btnText', '#000000')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer border ${
+                          customBtnText === '#000000'
+                            ? 'bg-white text-black border-white'
+                            : 'bg-[#1a1a1a] text-slate-400 border-[#333]'
+                        }`}
+                      >
+                        Svart
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateLiveCustomColor('btnText', '#ffffff')}
+                        className={`px-2.5 py-1.5 rounded-lg text-xs font-bold cursor-pointer border ${
+                          customBtnText === '#ffffff'
+                            ? 'bg-white text-black border-white'
+                            : 'bg-[#1a1a1a] text-slate-400 border-[#333]'
+                        }`}
+                      >
+                        Vit
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Spara som namngivet tema */}
+                <div className="pt-2 border-t border-[#262626] space-y-2.5">
+                  <label className="text-xs font-bold text-slate-300 block">
+                    Namnge och spara ditt eget tema:
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      value={customThemeName}
+                      onChange={(e) => setCustomThemeName(e.target.value)}
+                      placeholder="T.ex. Företagets profil eller Grävmaskin Gul..."
+                      className="flex-1 min-h-[42px] px-3.5 bg-[#121212] border border-[#333] rounded-xl text-xs text-white outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveCustomPreset}
+                      className="min-h-[42px] px-4 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs rounded-xl cursor-pointer transition-all shrink-0"
+                    >
+                      Spara som Custom-tema
+                    </button>
+                  </div>
+
+                  {themeSavedFeedback && (
+                    <div className="p-2.5 rounded-xl bg-emerald-950/80 border border-emerald-500/60 text-emerald-200 text-xs font-bold flex items-center gap-2">
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>{themeSavedFeedback}</span>
+                    </div>
+                  )}
+
+                  {savedThemes.length > 0 && (
+                    <div className="space-y-2 pt-2">
+                      <span className="text-xs font-bold text-slate-400 block">
+                        Dina sparade egna teman ({savedThemes.length}):
+                      </span>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {savedThemes.map((preset) => (
+                          <div
+                            key={preset.id}
+                            className="p-2.5 rounded-xl bg-[#121212] border border-[#2c2c2c] flex items-center justify-between gap-2"
+                          >
+                            <button
+                              type="button"
+                              onClick={() => handleApplySavedPreset(preset)}
+                              className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
+                            >
+                              <div className="flex items-center -space-x-1 shrink-0">
+                                <span
+                                  className="w-4 h-4 rounded-full border border-white/30"
+                                  style={{ backgroundColor: preset.accentHex }}
+                                />
+                                <span
+                                  className="w-4 h-4 rounded-full border border-white/30"
+                                  style={{ backgroundColor: preset.bgHex }}
+                                />
+                              </div>
+                              <span className="text-xs font-bold text-white truncate">
+                                {preset.name}
+                              </span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteSavedPreset(preset.id)}
+                              className="px-2 py-1 text-[11px] text-slate-500 hover:text-rose-400 cursor-pointer"
+                              title="Ta bort sparat tema"
+                            >
+                              Ta bort
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           )}

@@ -155,19 +155,34 @@ export default function App() {
     loadProjectsFromDB();
   }, []);
 
-  // Sync color palette class to document root
+  // Sync color palette class and custom CSS variables to document root
   useEffect(() => {
     const palette = userSettings.colorPalette || 'ORANGE_WORK';
     const root = document.documentElement;
-    root.classList.remove('palette-yellow', 'palette-daylight', 'palette-blue');
+    root.classList.remove(
+      'palette-yellow',
+      'palette-daylight',
+      'palette-blue',
+      'palette-emerald',
+      'palette-custom'
+    );
     if (palette === 'SAFETY_YELLOW') {
       root.classList.add('palette-yellow');
     } else if (palette === 'DAYLIGHT_HIGH_CONTRAST') {
       root.classList.add('palette-daylight');
     } else if (palette === 'NORDIC_BLUE') {
       root.classList.add('palette-blue');
+    } else if (palette === 'EMERALD_FOREST') {
+      root.classList.add('palette-emerald');
+    } else if (palette === 'CUSTOM') {
+      root.classList.add('palette-custom');
+      const custom = userSettings.activeCustomTheme;
+      root.style.setProperty('--custom-accent', custom?.accentHex || '#f97316');
+      root.style.setProperty('--custom-bg', custom?.bgHex || '#121212');
+      root.style.setProperty('--custom-card', custom?.cardHex || '#1a1a1a');
+      root.style.setProperty('--custom-btn-text', custom?.buttonTextHex || '#000000');
     }
-  }, [userSettings.colorPalette]);
+  }, [userSettings.colorPalette, userSettings.activeCustomTheme]);
 
   // Ensure scroll is always at top when navigating between views or projects
   useEffect(() => {
@@ -278,12 +293,13 @@ export default function App() {
         localStorage.setItem('falthjalp_current_user', JSON.stringify(user));
       } catch {}
     }
-    // Also update userSettings userName if empty
-    if (!userSettings.userName) {
-      const updated = { ...userSettings, userName: user.displayName };
-      setUserSettings(updated);
-      saveUserSettings(updated);
-    }
+    const updatedSettings: UserSettings = {
+      ...userSettings,
+      userName: userSettings.userName || user.displayName,
+      appContextMode: user.accountContext || userSettings.appContextMode || 'WORKPLACE',
+    };
+    setUserSettings(updatedSettings);
+    saveUserSettings(updatedSettings);
   };
 
   const handleUserLogout = () => {
@@ -334,6 +350,11 @@ export default function App() {
         onOpenNotices={() => setIsNoticesOpen(true)}
         onLogout={handleUserLogout}
         currentUser={currentUser}
+        userSettings={userSettings}
+        onUpdateUserSettings={(newSettings) => {
+          setUserSettings(newSettings);
+          saveUserSettings(newSettings);
+        }}
         unreadNoticesCount={unreadNoticesCount}
       />
 
@@ -364,6 +385,10 @@ export default function App() {
                 onOpenAPKExport={() => setView('APK_EXPORT')}
                 currentUser={currentUser}
                 userSettings={userSettings}
+                onUpdateUserSettings={(newSettings) => {
+                  setUserSettings(newSettings);
+                  saveUserSettings(newSettings);
+                }}
               />
             )}
 
@@ -402,6 +427,7 @@ export default function App() {
             {view === 'ACCOUNTS' && (
               <AccountsView
                 currentUser={currentUser}
+                userSettings={userSettings}
                 onUserLoggedIn={handleUserLogin}
                 onUserLoggedOut={handleUserLogout}
                 onBack={() => setView('DASHBOARD')}

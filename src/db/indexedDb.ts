@@ -187,7 +187,7 @@ export function getUserSettings(): UserSettings {
     enableTutorialGuide: false,
     reportLayout: 'AMA_STANDARD',
     appExperienceLevel: 'STANDARD',
-    appLayoutMode: 'FIELD_CLEAR',
+    appLayoutMode: 'SIMPLE_LIST',
     colorPalette: 'ORANGE_WORK',
     preInspectionPreference: 'ALWAYS_ASK',
     userUsageProfile: 'PRIVATE',

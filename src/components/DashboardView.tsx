@@ -1,7 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Project, ProjectType, UserSettings, UserAccount } from '../types';
+import {
+  Project,
+  ProjectType,
+  UserSettings,
+  UserAccount,
+  AppLayoutMode,
+} from '../types';
 import { ALL_MOMENTS, PROJECT_TYPE_LABELS } from '../data/momentsData';
 import { getDeletedProjects } from '../db/indexedDb';
+import {
+  getContextVocabulary,
+  resolveAppContextMode,
+} from '../utils/contextLabels';
 import {
   Plus,
   FolderOpen,
@@ -9,13 +19,17 @@ import {
   Trash2,
   MapPin,
   CheckCircle2,
-  Smartphone,
   Users,
   Shield,
-  Clock,
   ArrowRight,
-  QrCode,
   BookOpen,
+  Filter,
+  List,
+  LayoutGrid,
+  Table,
+  ChevronDown,
+  Search,
+  X,
 } from 'lucide-react';
 
 interface DashboardViewProps {
@@ -33,6 +47,7 @@ interface DashboardViewProps {
   onOpenExerciseCreator?: () => void;
   currentUser?: UserAccount | null;
   userSettings?: UserSettings;
+  onUpdateUserSettings?: (newSettings: UserSettings) => void;
 }
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
@@ -41,21 +56,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onCreateNew,
   onDeleteProject,
   onOpenReportDirect,
-  onOpenCollaboration,
   onOpenTrashBin,
   onOpenAccounts,
-  onOpenAPKExport,
-  onOpenQRCodeModal,
   onOpenTutorial,
   onOpenExerciseCreator,
   currentUser,
   userSettings,
+  onUpdateUserSettings,
 }) => {
   const [deletedCount, setDeletedCount] = useState<number>(0);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [hideReminder, setHideReminder] = useState<boolean>(false);
 
-  // Check if any project has incomplete / skipped försyn
+  // Filter & Layout popover state
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState<boolean>(false);
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'IN_PROGRESS' | 'COMPLETED' | 'NOT_STARTED'>('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | ProjectType>('ALL');
+
+  const activeContextMode = resolveAppContextMode(userSettings, currentUser);
+  const vocab = getContextVocabulary(activeContextMode);
+  const layoutMode: AppLayoutMode = userSettings?.appLayoutMode || 'SIMPLE_LIST';
+
+  const handleSetLayoutMode = (mode: AppLayoutMode) => {
+    if (userSettings && onUpdateUserSettings) {
+      onUpdateUserSettings({
+        ...userSettings,
+        appLayoutMode: mode,
+      });
+    }
+  };
+
   const uninspectedProjects = projects.filter(
     (p) => !p.preInspectionCompleted && !p.isDeleted
   );
@@ -74,17 +105,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   }, [projects]);
 
   const getProjectStats = (project: Project) => {
-    const totalMoments = (project.customMoments && project.customMoments.length > 0)
-      ? project.customMoments.length
-      : ALL_MOMENTS.filter((m) => m.projectType === project.projectType).length;
-    const completedMoments = Object.values(project.moments).filter((m) => m.status === 'GREEN').length;
-    const inProgressMoments = Object.values(project.moments).filter((m) => m.status === 'YELLOW').length;
-    const percent = totalMoments > 0 ? Math.round((completedMoments / totalMoments) * 100) : 0;
+    const relevant =
+      project.customMoments && project.customMoments.length > 0
+        ? project.customMoments
+        : ALL_MOMENTS.filter((m) => m.projectType === project.projectType);
+    const totalMoments = relevant.length;
+    const completedMoments = relevant.filter(
+      (m) => project.moments[m.id]?.status === 'GREEN'
+    ).length;
+    const inProgressMoments = relevant.filter(
+      (m) => project.moments[m.id]?.status === 'YELLOW'
+    ).length;
+    const percent =
+      totalMoments > 0 ? Math.round((completedMoments / totalMoments) * 100) : 0;
     return { totalMoments, completedMoments, inProgressMoments, percent };
   };
 
   const handleSoftDelete = (project: Project) => {
-    if (confirm(`Vill du flytta övningen "${project.name}" till papperskorgen?`)) {
+    if (confirm(`Vill du flytta "${project.name}" till papperskorgen?`)) {
       onDeleteProject(project.id);
       setToastMsg(`"${project.name}" flyttades till papperskorgen.`);
       setTimeout(() => setToastMsg(null), 4000);
@@ -92,13 +130,45 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     }
   };
 
+  // Filtered projects
+  const filteredProjects = projects.filter((project) => {
+    const stats = getProjectStats(project);
+    if (typeFilter !== 'ALL' && project.projectType !== typeFilter) return false;
+    if (statusFilter === 'COMPLETED' && stats.percent < 100) return false;
+    if (
+      statusFilter === 'IN_PROGRESS' &&
+      (stats.percent === 100 || (stats.completedMoments === 0 && stats.inProgressMoments === 0))
+    ) {
+      return false;
+    }
+    if (
+      statusFilter === 'NOT_STARTED' &&
+      (stats.completedMoments > 0 || stats.inProgressMoments > 0)
+    ) {
+      return false;
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const matchName = project.name.toLowerCase().includes(q);
+      const matchProp = project.propertyDesignation?.toLowerCase().includes(q);
+      const matchGroup = project.groupCode?.toLowerCase().includes(q);
+      if (!matchName && !matchProp && !matchGroup) return false;
+    }
+    return true;
+  });
+
+  const activeFilterCount =
+    (statusFilter !== 'ALL' ? 1 : 0) +
+    (typeFilter !== 'ALL' ? 1 : 0) +
+    (searchQuery.trim() ? 1 : 0);
+
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 pb-28 space-y-6 font-sans">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-5 pb-28 space-y-4 font-sans">
       {/* Toast Notification */}
       {toastMsg && (
-        <div className="bg-[#1e1a12] border border-orange-500/80 rounded-2xl p-4 flex items-center justify-between text-sm text-orange-200 shadow-xl">
-          <div className="flex items-center gap-2.5">
-            <Trash2 className="w-5 h-5 text-orange-400 shrink-0" />
+        <div className="bg-[#1c1914] border border-orange-500/60 rounded-xl p-3.5 flex items-center justify-between text-xs sm:text-sm text-orange-200">
+          <div className="flex items-center gap-2">
+            <Trash2 className="w-4 h-4 text-orange-400 shrink-0" />
             <span>{toastMsg}</span>
           </div>
           {onOpenTrashBin && (
@@ -112,149 +182,413 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       )}
 
-      {/* Startsida Toppsektion (Minimalistisk & Gubbsäker) */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-[#262626] pb-5">
+      {/* REN TOPPRAD: Titel till vänster, samlade knappar till höger */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#242424] pb-4">
         <div>
-          <span className="text-xs font-black uppercase tracking-wider text-orange-400 bg-orange-950/60 px-2.5 py-0.5 rounded-full border border-orange-800/80">
-            Anläggningsutbildning • Egenkontroll
-          </span>
-          <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight mt-1.5">
-            Mina Skolövningar ({projects.length})
-          </h1>
-          <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
-            Välj en övning nedan för att gå igenom utbildningens faser, ta fotobevis och signera.
-          </p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              {vocab.projectsHeading}
+            </h1>
+            <span className="text-xs font-mono font-bold px-2 py-0.5 rounded-md bg-[#1c1c1c] text-slate-400 border border-[#2c2c2c]">
+              {filteredProjects.length}
+              {filteredProjects.length !== projects.length ? ` av ${projects.length}` : ''}
+            </span>
+          </div>
+          <p className="text-xs text-slate-400 mt-0.5">{vocab.projectsSubtitle}</p>
         </div>
 
-        {/* Action-knappar i toppen */}
-        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {/* Lärarpanel: Kreatörspanel för Lärare */}
-          {currentUser?.role !== 'STUDENT' && onOpenExerciseCreator && (
-            <button
-              type="button"
-              onClick={onOpenExerciseCreator}
-              className="min-h-[48px] px-4 bg-[#1e1e1e] hover:bg-[#282828] text-orange-400 hover:text-orange-300 border border-orange-500/50 font-black text-xs sm:text-sm rounded-2xl flex items-center gap-2 cursor-pointer transition-all shadow-sm"
-              title="Kreatörspanel för lärare: Skapa övningar från mall eller från scratch"
-            >
-              <BookOpen className="w-4 h-4 stroke-[2.5]" />
-              <span>Kreatörspanel (Lärare)</span>
-            </button>
-          )}
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* FILTER & LAYOUT-KNAPP (håller toppen helt ren från utspridda filter!) */}
+          <button
+            type="button"
+            onClick={() => setIsFilterPanelOpen(!isFilterPanelOpen)}
+            className={`min-h-[40px] px-3.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border cursor-pointer transition-colors ${
+              isFilterPanelOpen || activeFilterCount > 0
+                ? 'bg-orange-500/15 border-orange-500/60 text-orange-300'
+                : 'bg-[#181818] hover:bg-[#222222] text-slate-300 border-[#2e2e2e]'
+            }`}
+          >
+            <Filter className="w-3.5 h-3.5 text-orange-400" />
+            <span>Filter & Vy</span>
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full bg-orange-500 text-black font-black text-[10px]">
+                {activeFilterCount}
+              </span>
+            )}
+            <ChevronDown
+              className={`w-3.5 h-3.5 transition-transform ${
+                isFilterPanelOpen ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
 
-          {/* Konton, Rank & Elevgrupper */}
+          {/* Konton / Personal */}
           {onOpenAccounts && (
             <button
               type="button"
               onClick={onOpenAccounts}
-              className="min-h-[48px] px-4 bg-[#1e1e1e] hover:bg-[#282828] text-slate-200 hover:text-white border border-[#363636] font-bold text-xs sm:text-sm rounded-2xl flex items-center gap-2 cursor-pointer transition-all shadow-sm"
-              title="Hantera konton under din rank, sortera elevgrupper & behörigheter"
+              className="min-h-[40px] px-3.5 bg-[#181818] hover:bg-[#222222] text-slate-200 border border-[#2e2e2e] font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
             >
-              <Users className="w-4 h-4 text-orange-400 stroke-[2.3]" />
-              <span>{currentUser?.role === 'STUDENT' ? 'Mitt Elevkonto' : 'Konton & Grupper'}</span>
+              <Users className="w-3.5 h-3.5 text-orange-400" />
+              <span>
+                {currentUser?.role === 'STUDENT'
+                  ? vocab.myAccountButton
+                  : vocab.accountsHeaderButton}
+              </span>
             </button>
           )}
 
-          {/* Papperskorg */}
-          {onOpenTrashBin && (
+          {/* Mallbyggare / Kreatörspanel */}
+          {currentUser?.role !== 'STUDENT' && onOpenExerciseCreator && (
             <button
               type="button"
-              onClick={onOpenTrashBin}
-              className="min-h-[48px] px-3.5 bg-[#1e1e1e] hover:bg-[#282828] text-slate-400 hover:text-white border border-[#333333] font-bold text-xs sm:text-sm rounded-2xl flex items-center gap-1.5 cursor-pointer transition-all"
-              title="Papperskorg för borttagna övningar"
+              onClick={onOpenExerciseCreator}
+              className="min-h-[40px] px-3.5 bg-[#181818] hover:bg-[#222222] text-slate-200 border border-[#2e2e2e] font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
             >
-              <Trash2 className="w-4 h-4" />
-              {deletedCount > 0 && (
-                <span className="text-[11px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-800 px-1.5 rounded-full">
-                  {deletedCount}
-                </span>
-              )}
+              <BookOpen className="w-3.5 h-3.5 text-orange-400" />
+              <span>{vocab.creatorButtonShort}</span>
             </button>
           )}
 
-          {/* Ny övning i stark orange kontrast */}
+          {/* Nytt projekt / Ny övning */}
           <button
             type="button"
             onClick={onCreateNew}
-            className="min-h-[48px] px-5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs sm:text-sm rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 transition-all cursor-pointer touch-manipulation"
+            className="min-h-[40px] px-4 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs rounded-xl flex items-center justify-center gap-1.5 cursor-pointer transition-all"
           >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Ny övning</span>
+            <Plus className="w-4 h-4 stroke-[2.8]" />
+            <span>{vocab.createProjectButton}</span>
           </button>
         </div>
       </div>
 
-      {/* Påminnelseruta för Försyn (om ej genomförd, kan döljas) */}
-      {!hideReminder && uninspectedProjects.length > 0 && (
-        <div className="bg-[#1a1712] border-2 border-orange-500/40 rounded-3xl p-4 sm:p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-lg shadow-orange-950/20 animate-in fade-in">
-          <div className="flex items-start sm:items-center gap-3.5">
-            <div className="w-10 h-10 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0 mt-0.5 sm:mt-0 font-bold">
-              <Shield className="w-5 h-5 text-orange-400" />
-            </div>
-            <div className="space-y-0.5">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-orange-400">
-                  Påminnelse: Försyn & Skadeguide
-                </span>
-                <span className="text-[10px] bg-orange-950 text-orange-300 border border-orange-800 px-2 py-0.2 rounded-full font-bold">
-                  {uninspectedProjects.length} övning{uninspectedProjects.length > 1 ? 'ar' : ''}
-                </span>
-              </div>
-              <p className="text-xs text-slate-300 leading-snug">
-                Kom ihåg att dokumentera grannens fasad, sockel, staket och asfalt innan schaktning eller tunga transporter startar för att skydda dig mot skadeståndskrav.
-              </p>
+      {/* UTFÄLLBAR PANEL UNDER KNAPPEN "FILTER & VY" */}
+      {isFilterPanelOpen && (
+        <div className="bg-[#161616] border border-[#2c2c2c] rounded-2xl p-4 space-y-4 animate-in fade-in duration-150">
+          <div className="flex items-center justify-between border-b border-[#242424] pb-2.5">
+            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-orange-400" />
+              <span>Filtrera & välj listlayout</span>
+            </span>
+            <div className="flex items-center gap-2">
+              {activeFilterCount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStatusFilter('ALL');
+                    setTypeFilter('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="text-[11px] font-bold text-orange-400 hover:underline cursor-pointer"
+                >
+                  Nollställ filter
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => setIsFilterPanelOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto shrink-0 justify-end">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* 1. Välj Layout (Enkel lista, Kompakt tabell, Stora kort) */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                Layout / Visningsläge:
+              </label>
+              <div className="grid grid-cols-3 gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleSetLayoutMode('SIMPLE_LIST')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border cursor-pointer transition-all ${
+                    layoutMode === 'SIMPLE_LIST' || layoutMode === 'GUIDED_STEP'
+                      ? 'bg-orange-500 text-black border-orange-400 font-black'
+                      : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                  }`}
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>Enkel lista</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetLayoutMode('COMPACT')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border cursor-pointer transition-all ${
+                    layoutMode === 'COMPACT'
+                      ? 'bg-orange-500 text-black border-orange-400 font-black'
+                      : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                  }`}
+                >
+                  <Table className="w-3.5 h-3.5" />
+                  <span>Kompakt</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleSetLayoutMode('FIELD_CLEAR')}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border cursor-pointer transition-all ${
+                    layoutMode === 'FIELD_CLEAR'
+                      ? 'bg-orange-500 text-black border-orange-400 font-black'
+                      : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                  }`}
+                >
+                  <LayoutGrid className="w-3.5 h-3.5" />
+                  <span>Stora kort</span>
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Statusfilter */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                Status:
+              </label>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="w-full min-h-[38px] px-3 bg-[#121212] border border-[#2e2e2e] rounded-lg text-xs text-white font-bold outline-none"
+              >
+                <option value="ALL">Alla statusar ({projects.length})</option>
+                <option value="IN_PROGRESS">Pågående</option>
+                <option value="COMPLETED">Klara (100%)</option>
+                <option value="NOT_STARTED">Ej påbörjade</option>
+              </select>
+            </div>
+
+            {/* 3. Typ & Sök */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                Sök eller filtrera typ:
+              </label>
+              <div className="flex items-center gap-1.5">
+                <div className="relative flex-1">
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Sök namn, fastighet..."
+                    className="w-full min-h-[38px] pl-8 pr-2.5 bg-[#121212] border border-[#2e2e2e] rounded-lg text-xs text-white outline-none"
+                  />
+                  <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                </div>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => setTypeFilter(e.target.value as any)}
+                  className="min-h-[38px] px-2.5 bg-[#121212] border border-[#2e2e2e] rounded-lg text-xs text-slate-200 font-bold outline-none"
+                >
+                  <option value="ALL">Alla typer</option>
+                  <option value="HUSGRUND">Husgrund</option>
+                  <option value="PLATTSATTNING">Plattsättning</option>
+                  <option value="ENSKILT_AVLOPP">Enskilt Avlopp</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Papperskorg & Försyn-genväg längst ner i filterpanelen */}
+          <div className="pt-2 border-t border-[#242424] flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-3">
+              {!hideReminder && uninspectedProjects.length > 0 && onOpenTutorial && (
+                <button
+                  type="button"
+                  onClick={() => onOpenTutorial(uninspectedProjects[0]?.id)}
+                  className="text-orange-400 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                >
+                  <Shield className="w-3.5 h-3.5" />
+                  <span>
+                    Försyn & Skadeguide ({uninspectedProjects.length} ej fotade)
+                  </span>
+                </button>
+              )}
+            </div>
+            {onOpenTrashBin && (
+              <button
+                type="button"
+                onClick={onOpenTrashBin}
+                className="text-slate-400 hover:text-white flex items-center gap-1.5 cursor-pointer font-medium"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>
+                  Papperskorg ({deletedCount})
+                </span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Diskret envägspåminnelse om försyn (endast om ej dold, enkel rad utan bling) */}
+      {!hideReminder && uninspectedProjects.length > 0 && !isFilterPanelOpen && (
+        <div className="bg-[#161616] border border-[#2a2a2a] rounded-xl px-4 py-2.5 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2 text-slate-300 truncate">
+            <Shield className="w-4 h-4 text-orange-400 shrink-0" />
+            <span className="truncate">
+              <strong>Försyn före schakt:</strong> {uninspectedProjects.length}{' '}
+              {uninspectedProjects.length > 1
+                ? vocab.projectNounPlural
+                : vocab.projectNounSingular}{' '}
+              saknar försynsfoton.
+            </span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
             {onOpenTutorial && (
               <button
                 type="button"
                 onClick={() => onOpenTutorial(uninspectedProjects[0]?.id)}
-                className="px-4 py-2 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs rounded-xl cursor-pointer shadow-md shadow-orange-500/20 transition-all active:scale-95"
+                className="px-2.5 py-1 bg-orange-500/15 hover:bg-orange-500/25 text-orange-300 border border-orange-500/40 font-bold rounded-lg cursor-pointer"
               >
-                Gör försyn nu
+                Öppna försyn
               </button>
             )}
             <button
               type="button"
               onClick={() => setHideReminder(true)}
-              className="px-3 py-2 bg-[#222222] hover:bg-[#2c2c2c] text-slate-400 hover:text-white rounded-xl text-xs font-bold cursor-pointer transition-colors"
-              title="Dölj påminnelse för denna session"
+              className="text-slate-500 hover:text-slate-300 cursor-pointer px-1"
+              title="Dölj"
             >
-              Dölj
+              ✕
             </button>
           </div>
         </div>
       )}
 
-      {/* Projektlista - Stora, rena kort utan visuellt brus */}
+      {/* PROJEKTLISTA — ANPASSAD EFTER VALD LAYOUT */}
       {projects.length === 0 ? (
-        <div className="bg-[#181818] border-2 border-dashed border-[#333333] rounded-3xl p-10 sm:p-14 text-center space-y-5">
-          <div className="w-16 h-16 rounded-2xl bg-[#222222] border border-[#383838] flex items-center justify-center mx-auto text-3xl">
-            🏗️
-          </div>
-          <div className="space-y-1.5 max-w-md mx-auto">
-            <h3 className="text-xl font-black text-white">
-              Inga övningar skapade än
+        <div className="bg-[#161616] border border-[#282828] rounded-2xl p-10 text-center space-y-4">
+          <div className="space-y-1 max-w-md mx-auto">
+            <h3 className="text-lg font-bold text-white">
+              {vocab.emptyProjectsTitle}
             </h3>
-            <p className="text-slate-400 text-sm leading-relaxed">
-              Starta en ny övning för Husgrund, Plattsättning eller Enskilt Avlopp för att börja egenkontrollen under skoldagen.
+            <p className="text-slate-400 text-xs sm:text-sm leading-relaxed">
+              {vocab.emptyProjectsSubtitle}
             </p>
           </div>
-
-          <div className="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div>
             <button
               onClick={onCreateNew}
-              className="w-full sm:w-auto min-h-[52px] px-8 bg-orange-500 hover:bg-orange-400 text-black font-black text-base rounded-2xl flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-orange-500/20 transition-all active:scale-95"
+              className="min-h-[44px] px-6 bg-orange-500 hover:bg-orange-400 text-black font-black text-sm rounded-xl inline-flex items-center justify-center gap-2 cursor-pointer transition-all"
             >
-              <Plus className="w-5 h-5 stroke-[3]" />
-              <span>Skapa första övningen</span>
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>{vocab.createFirstProjectButton}</span>
             </button>
           </div>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 gap-5">
-          {projects.map((project) => {
+      ) : filteredProjects.length === 0 ? (
+        <div className="bg-[#161616] border border-[#282828] rounded-xl p-8 text-center space-y-2">
+          <p className="text-sm text-slate-300 font-bold">
+            Inga {vocab.projectNounPlural} matchade ditt filter.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setStatusFilter('ALL');
+              setTypeFilter('ALL');
+              setSearchQuery('');
+            }}
+            className="text-xs text-orange-400 hover:underline font-bold cursor-pointer"
+          >
+            Visa alla ({projects.length})
+          </button>
+        </div>
+      ) : layoutMode === 'COMPACT' ? (
+        /* =====================================================================
+           LAYOUT 2: KOMPAKT TABELLVY (Maximal översikt, täta rader)
+           ===================================================================== */
+        <div className="bg-[#151515] border border-[#262626] rounded-xl overflow-hidden">
+          <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-4 py-2.5 bg-[#1a1a1a] border-b border-[#262626] text-[11px] font-bold uppercase tracking-wider text-slate-400">
+            <div className="col-span-5">Namn</div>
+            <div className="col-span-3">Typ & Fastighet</div>
+            <div className="col-span-2">Framsteg</div>
+            <div className="col-span-2 text-right">Åtgärd</div>
+          </div>
+          <div className="divide-y divide-[#222222]">
+            {filteredProjects.map((project) => {
+              const stats = getProjectStats(project);
+              const typeInfo = PROJECT_TYPE_LABELS[project.projectType];
+              const isCompleted = stats.percent === 100;
+
+              return (
+                <div
+                  key={project.id}
+                  onClick={() => onOpenProject(project.id)}
+                  className="px-4 py-3 hover:bg-[#1c1c1c] transition-colors cursor-pointer flex flex-col sm:grid sm:grid-cols-12 sm:items-center gap-2 sm:gap-3"
+                >
+                  <div className="sm:col-span-5 flex items-center gap-2.5 min-w-0">
+                    <span
+                      className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                        isCompleted
+                          ? 'bg-emerald-400'
+                          : stats.completedMoments > 0
+                          ? 'bg-orange-400'
+                          : 'bg-slate-600'
+                      }`}
+                    />
+                    <span className="font-bold text-sm text-white truncate">
+                      {project.name}
+                    </span>
+                    {project.isGroupProject && (
+                      <span className="text-[10px] font-mono bg-[#222] text-slate-300 px-1.5 py-0.2 rounded border border-[#333] shrink-0">
+                        {project.groupCode || 'Lag'}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="sm:col-span-3 text-xs text-slate-400 truncate">
+                    {typeInfo.title}
+                    {project.propertyDesignation ? ` • ${project.propertyDesignation}` : ''}
+                  </div>
+
+                  <div className="sm:col-span-2 flex items-center gap-2">
+                    <span
+                      className={`text-xs font-mono font-bold ${
+                        isCompleted ? 'text-emerald-400' : 'text-slate-200'
+                      }`}
+                    >
+                      {stats.completedMoments}/{stats.totalMoments} ({stats.percent}%)
+                    </span>
+                  </div>
+
+                  <div
+                    className="sm:col-span-2 flex items-center justify-end gap-1.5"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onOpenProject(project.id)}
+                      className="px-2.5 py-1 bg-orange-500 hover:bg-orange-400 text-black font-bold text-xs rounded-lg cursor-pointer"
+                    >
+                      Öppna
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenReportDirect(project)}
+                      className="p-1.5 bg-[#202020] hover:bg-[#2a2a2a] text-slate-300 rounded-lg border border-[#333] cursor-pointer"
+                      title="Rapport"
+                    >
+                      <FileText className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSoftDelete(project)}
+                      className="p-1.5 bg-[#202020] hover:bg-rose-950 text-slate-400 hover:text-rose-300 rounded-lg border border-[#333] cursor-pointer"
+                      title="Ta bort"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : layoutMode === 'FIELD_CLEAR' ? (
+        /* =====================================================================
+           LAYOUT 3: STORA FÄLTKORT (För arbete med handskar)
+           ===================================================================== */
+        <div className="grid grid-cols-1 gap-4">
+          {filteredProjects.map((project) => {
             const stats = getProjectStats(project);
             const typeInfo = PROJECT_TYPE_LABELS[project.projectType];
             const isCompleted = stats.percent === 100;
@@ -262,129 +596,182 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             return (
               <div
                 key={project.id}
-                className="bg-[#1a1a1a] hover:bg-[#1e1e1e] border-2 border-[#282828] hover:border-orange-500/40 rounded-3xl p-6 sm:p-7 shadow-xl space-y-5 transition-all"
+                className="bg-[#181818] border border-[#2c2c2c] rounded-2xl p-5 sm:p-6 space-y-4"
               >
-                {/* 1. ÖVERST: Skolprojektets namn i stor fetstil & diskreta etiketter direkt undertill */}
-                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                  <div className="space-y-2 flex-1 min-w-0">
-                    {/* Skolprojektets namn i fetstil (t.ex. "Övning Husgrund 1") */}
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                  <div className="space-y-1.5 flex-1 min-w-0">
                     <h2
                       onClick={() => onOpenProject(project.id)}
-                      className="text-xl sm:text-2xl font-black text-white tracking-tight cursor-pointer hover:text-orange-400 transition-colors leading-tight truncate"
+                      className="text-lg sm:text-xl font-black text-white cursor-pointer hover:text-orange-400 transition-colors truncate"
                     >
                       {project.name}
                     </h2>
-
-                    {/* Små, diskreta etiketter (tags) direkt undertill */}
-                    <div className="flex flex-wrap items-center gap-2 pt-0.5">
-                      {/* Projekttyp tag */}
-                      <span className="text-xs font-bold text-slate-300 bg-[#121212] px-3 py-1 rounded-xl border border-[#333333] flex items-center gap-1.5">
-                        <span>{typeInfo.icon}</span>
-                        <span>{typeInfo.title}</span>
-                      </span>
-
-                      {/* Status tag */}
-                      <span
-                        className={`text-xs font-bold px-3 py-1 rounded-xl border flex items-center gap-1.5 ${
-                          isCompleted
-                            ? 'bg-emerald-950/80 text-emerald-300 border-emerald-700/80'
-                            : stats.completedMoments > 0
-                            ? 'bg-orange-950/80 text-orange-300 border-orange-700/80'
-                            : 'bg-[#121212] text-slate-400 border-[#333333]'
-                        }`}
-                      >
-                        {isCompleted ? (
-                          <>
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                            <span>Klar • Alla moment godkända</span>
-                          </>
-                        ) : stats.completedMoments > 0 ? (
-                          <>
-                            <span className="w-2 h-2 rounded-full bg-orange-400 animate-pulse"></span>
-                            <span>Pågår • {stats.completedMoments} av {stats.totalMoments} klara</span>
-                          </>
-                        ) : (
-                          <>
-                            <span className="w-2 h-2 rounded-full bg-slate-600"></span>
-                            <span>Ej påbörjad • {stats.totalMoments} moment</span>
-                          </>
-                        )}
-                      </span>
-
-                      {/* Grupp / Klass tag */}
-                      {project.isGroupProject && (
-                        <span className="text-xs font-bold text-sky-300 bg-sky-950/80 px-2.5 py-1 rounded-xl border border-sky-800 flex items-center gap-1">
-                          <Users className="w-3 h-3 text-sky-400" />
-                          <span>{project.groupCode || 'Grupp'}</span>
-                        </span>
-                      )}
-
-                      {/* Fastighet/beteckning tag */}
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                      <span className="font-bold text-slate-300">{typeInfo.title}</span>
                       {project.propertyDesignation && (
-                        <span className="text-xs text-slate-400 bg-[#121212] px-2.5 py-1 rounded-xl border border-[#2a2a2a] flex items-center gap-1">
-                          <MapPin className="w-3 h-3 text-slate-500" />
-                          <span>{project.propertyDesignation}</span>
-                        </span>
+                        <span>• {project.propertyDesignation}</span>
+                      )}
+                      {project.isGroupProject && (
+                        <span>• Kod: {project.groupCode}</span>
                       )}
                     </div>
                   </div>
 
-                  {/* Procent & framsteg */}
                   <div className="text-left sm:text-right shrink-0">
-                    <span className="text-2xl sm:text-3xl font-black font-mono text-white block">
+                    <span className="text-xl font-black font-mono text-white block">
                       {stats.percent}%
                     </span>
-                    <span className="text-xs font-medium text-slate-400">
+                    <span className="text-xs text-slate-400">
                       {stats.completedMoments} av {stats.totalMoments} klara
                     </span>
                   </div>
                 </div>
 
-                {/* Tydlig framstegsindikator */}
-                <div className="w-full h-2.5 bg-[#121212] rounded-full overflow-hidden border border-[#2c2c2c]">
+                <div className="w-full h-2 bg-[#111111] rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-300 ${
+                    className={`h-full rounded-full ${
                       isCompleted ? 'bg-emerald-500' : 'bg-orange-500'
                     }`}
                     style={{ width: `${stats.percent}%` }}
                   />
                 </div>
 
-                {/* Stora, gubbsäkra knappar för kall fingrar och arbetshandskar */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-1">
-                  {/* Primärknapp i skarpt orange */}
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
                   <button
                     type="button"
                     onClick={() => onOpenProject(project.id)}
-                    className="flex-1 min-h-[54px] px-6 bg-orange-500 hover:bg-orange-400 active:scale-98 text-black font-black text-base rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/15 cursor-pointer transition-all touch-manipulation"
+                    className="flex-1 min-h-[48px] px-5 bg-orange-500 hover:bg-orange-400 text-black font-black text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <FolderOpen className="w-5 h-5 stroke-[2.5]" />
-                    <span>Öppna övning & moment</span>
-                    <ArrowRight className="w-4 h-4 ml-1 stroke-[3]" />
+                    <FolderOpen className="w-4 h-4" />
+                    <span>{vocab.openProjectButton}</span>
                   </button>
-
-                  <div className="flex items-center gap-2.5">
-                    {/* Skriv ut / Visa rapport */}
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
                       onClick={() => onOpenReportDirect(project)}
-                      className="min-h-[54px] px-5 bg-[#141414] hover:bg-[#222222] text-white border-2 border-[#333333] hover:border-[#444444] font-bold text-sm rounded-2xl flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                      title="Visa formell rapport"
+                      className="min-h-[48px] px-4 bg-[#121212] hover:bg-[#222222] text-white border border-[#333333] font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer"
                     >
                       <FileText className="w-4 h-4 text-orange-400" />
                       <span>Rapport</span>
                     </button>
-
-                    {/* Ta bort till papperskorg */}
                     <button
                       type="button"
                       onClick={() => handleSoftDelete(project)}
-                      className="min-h-[54px] w-14 bg-[#141414] hover:bg-rose-950 text-slate-500 hover:text-rose-400 border-2 border-[#333333] hover:border-rose-800 rounded-2xl flex items-center justify-center cursor-pointer transition-colors"
-                      title="Flytta övning till papperskorgen"
+                      className="min-h-[48px] w-12 bg-[#121212] hover:bg-rose-950 text-slate-400 hover:text-rose-400 border border-[#333333] rounded-xl flex items-center justify-center cursor-pointer"
                     >
-                      <Trash2 className="w-5 h-5" />
+                      <Trash2 className="w-4 h-4" />
                     </button>
                   </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        /* =====================================================================
+           LAYOUT 1 (STANDARD): ENKEL LISTA — INGEN BLING
+           Ren, avskalad och lättläst listvy utan tunga kort eller brus
+           ===================================================================== */
+        <div className="bg-[#161616] border border-[#262626] rounded-2xl divide-y divide-[#242424] overflow-hidden">
+          {filteredProjects.map((project) => {
+            const stats = getProjectStats(project);
+            const typeInfo = PROJECT_TYPE_LABELS[project.projectType];
+            const isCompleted = stats.percent === 100;
+
+            return (
+              <div
+                key={project.id}
+                onClick={() => onOpenProject(project.id)}
+                className="p-4 sm:px-5 sm:py-4 hover:bg-[#1c1c1c] transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 cursor-pointer"
+              >
+                {/* Vänster: Statusprick + Namn + Enkel textrad undertill */}
+                <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                  <div
+                    className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border text-xs font-bold mt-0.5 sm:mt-0 ${
+                      isCompleted
+                        ? 'bg-emerald-500/15 border-emerald-500/50 text-emerald-400'
+                        : stats.completedMoments > 0
+                        ? 'bg-orange-500/15 border-orange-500/40 text-orange-400'
+                        : 'bg-[#121212] border-[#2e2e2e] text-slate-500'
+                    }`}
+                  >
+                    {isCompleted ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <span className="font-mono text-[11px]">{stats.percent}%</span>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h2 className="text-base font-bold text-white truncate">
+                        {project.name}
+                      </h2>
+                      {isCompleted && (
+                        <span className="text-[10px] font-bold uppercase px-2 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 shrink-0">
+                          Klar
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-xs text-slate-400 mt-0.5">
+                      <span>{typeInfo.title}</span>
+                      <span>•</span>
+                      <span>
+                        {stats.completedMoments} av {stats.totalMoments} moment godkända
+                      </span>
+                      {project.propertyDesignation && (
+                        <>
+                          <span>•</span>
+                          <span className="inline-flex items-center gap-1">
+                            <MapPin className="w-3 h-3 text-slate-500" />
+                            {project.propertyDesignation}
+                          </span>
+                        </>
+                      )}
+                      {project.isGroupProject && project.groupCode && (
+                        <>
+                          <span>•</span>
+                          <span className="text-sky-400 font-mono">
+                            {project.groupCode}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Höger: Rena knappar */}
+                <div
+                  className="flex items-center gap-2 shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onOpenProject(project.id)}
+                    className="min-h-[38px] px-4 bg-orange-500 hover:bg-orange-400 text-black font-bold text-xs rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
+                  >
+                    <span>Öppna</span>
+                    <ArrowRight className="w-3.5 h-3.5 stroke-[2.5]" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => onOpenReportDirect(project)}
+                    className="min-h-[38px] px-3 bg-[#121212] hover:bg-[#222222] text-slate-200 border border-[#2e2e2e] font-medium text-xs rounded-lg flex items-center gap-1.5 cursor-pointer transition-colors"
+                    title="Visa rapport"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-slate-400" />
+                    <span>Rapport</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleSoftDelete(project)}
+                    className="min-h-[38px] w-9 bg-[#121212] hover:bg-rose-950 text-slate-500 hover:text-rose-400 border border-[#2e2e2e] rounded-lg flex items-center justify-center cursor-pointer transition-colors"
+                    title="Flytta till papperskorgen"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
             );

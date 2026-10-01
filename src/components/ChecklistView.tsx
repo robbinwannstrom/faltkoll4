@@ -1,5 +1,13 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Project, MomentDefinition, MomentRecord, MomentStatus, MomentPhoto, UserSettings } from '../types';
+import {
+  Project,
+  MomentDefinition,
+  MomentRecord,
+  MomentStatus,
+  MomentPhoto,
+  UserSettings,
+  AppLayoutMode,
+} from '../types';
 import { ALL_MOMENTS, PROJECT_TYPE_LABELS } from '../data/momentsData';
 import { PhotoQuickMenuModal } from './PhotoQuickMenuModal';
 import { PhotoArchiveModal } from './PhotoArchiveModal';
@@ -10,6 +18,10 @@ import { MomentAiHelperModal } from './MomentAiHelperModal';
 import { fileToBase64Optimized, getFormattedCurrentTime } from '../db/indexedDb';
 import { getDefaultCategoryForMoment } from '../utils/photoStorage';
 import { getSuggestionsForMoment } from '../data/momentCheckSuggestions';
+import {
+  getContextVocabulary,
+  resolveAppContextMode,
+} from '../utils/contextLabels';
 import {
   CheckCircle2,
   Camera,
@@ -38,6 +50,12 @@ import {
   Ruler,
   HelpCircle,
   Info,
+  Filter,
+  List,
+  Table,
+  LayoutGrid,
+  Wrench,
+  X,
 } from 'lucide-react';
 
 interface ChecklistViewProps {
@@ -67,11 +85,25 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       : ALL_MOMENTS.filter((m) => m.projectType === project.projectType);
   const typeInfo = PROJECT_TYPE_LABELS[project.projectType];
 
+  const activeContextMode = resolveAppContextMode(userSettings);
+  const vocab = getContextVocabulary(activeContextMode);
+
   // Distinct phases in chronological order
   const phases = Array.from(new Set(relevantMoments.map((m) => m.phaseName)));
 
   // Selected phase view or "ALL"
   const [selectedPhase, setSelectedPhase] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'NOT_APPROVED' | 'GREEN' | 'YELLOW'>('ALL');
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState<boolean>(false);
+  const [isToolsPanelOpen, setIsToolsPanelOpen] = useState<boolean>(false);
+
+  const layoutMode: AppLayoutMode = userSettings.appLayoutMode || 'SIMPLE_LIST';
+  const handleSetLayoutMode = (mode: AppLayoutMode) => {
+    onUpdateUserSettings({
+      ...userSettings,
+      appLayoutMode: mode,
+    });
+  };
 
   // Expanded moment map (expanded moment id, or null for single open, or record)
   const [expandedMoments, setExpandedMoments] = useState<Record<string, boolean>>({});
@@ -116,11 +148,13 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
   // Signature canvas states per moment
   const canvasRefs = useRef<Record<string, HTMLCanvasElement | null>>({});
   const isDrawingMap = useRef<Record<string, boolean>>({});
+  const hasDrawnMap = useRef<Record<string, boolean>>({});
+  const [recentApprovedMomentId, setRecentApprovedMomentId] = useState<string | null>(null);
 
-  // Stats calculation
+  // Stats calculation (strictly matched against relevantMoments)
   const totalCount = relevantMoments.length;
-  const completedCount = Object.values(project.moments).filter((m) => m.status === 'GREEN').length;
-  const inProgressCount = Object.values(project.moments).filter((m) => m.status === 'YELLOW').length;
+  const completedCount = relevantMoments.filter((m) => project.moments[m.id]?.status === 'GREEN').length;
+  const inProgressCount = relevantMoments.filter((m) => project.moments[m.id]?.status === 'YELLOW').length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   // Total photos count across all moments
@@ -318,14 +352,18 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       signature: '',
     };
 
+    const signerName = userSettings.userName || 'Elev / Yrkeslärare';
+
     const updatedRecord: MomentRecord = {
       ...existing,
       status: newStatus,
-      completedAt: newStatus === 'GREEN' ? time : existing.completedAt,
-      completedTimestamp: newStatus === 'GREEN' ? Date.now() : existing.completedTimestamp,
+      completedAt: newStatus === 'GREEN' ? time : newStatus === 'RED' ? undefined : existing.completedAt,
+      completedTimestamp: newStatus === 'GREEN' ? Date.now() : newStatus === 'RED' ? undefined : existing.completedTimestamp,
       signature:
-        newStatus === 'GREEN' && !existing.signature
-          ? userSettings.userName || 'Ansvarig Yrkeslärare/Elev'
+        newStatus === 'GREEN'
+          ? existing.signature || `${signerName} [Godkänd ${time}]`
+          : newStatus === 'RED'
+          ? ''
           : existing.signature,
     };
 
@@ -336,6 +374,15 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
         [moment.id]: updatedRecord,
       },
     });
+
+    if (newStatus === 'GREEN') {
+      setRecentApprovedMomentId(moment.id);
+      setCloudSyncMsg(`Moment ${moment.id} (${moment.title}) är nu GODKÄNT!`);
+      setTimeout(() => {
+        setCloudSyncMsg(null);
+        setRecentApprovedMomentId((prev) => (prev === moment.id ? null : prev));
+      }, 4000);
+    }
   };
 
   // Canvas Drawing & Touch Signature handlers
@@ -346,6 +393,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
     if (!ctx) return;
 
     isDrawingMap.current[momentId] = true;
+    hasDrawnMap.current[momentId] = true;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.strokeStyle = '#f97316'; // Safety orange ink
@@ -371,6 +419,7 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
 
   const clearSignatureCanvas = (momentId: string) => {
     const canvas = canvasRefs.current[momentId];
+    hasDrawnMap.current[momentId] = false;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
@@ -388,13 +437,17 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       signature: '',
     };
 
-    const signatureDataUrl = canvas ? canvas.toDataURL('image/png') : '';
+    const signatureDataUrl =
+      canvas && hasDrawnMap.current[momentId]
+        ? canvas.toDataURL('image/png')
+        : existing.signatureImage || '';
     const signerName = userSettings.userName || 'Elev / Yrkeslärare';
 
     const updatedRecord: MomentRecord = {
       ...existing,
       status: 'GREEN',
-      signature: `${signerName} [Finger-signatur godkänd ${time}]`,
+      signature: `${signerName} [Signerat & godkänt ${time}]`,
+      signatureImage: signatureDataUrl || existing.signatureImage,
       completedAt: time,
       completedTimestamp: Date.now(),
     };
@@ -407,8 +460,12 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
       },
     });
 
-    setCloudSyncMsg(`Moment ${momentId} godkänt och signerat!`);
-    setTimeout(() => setCloudSyncMsg(null), 3000);
+    setRecentApprovedMomentId(momentId);
+    setCloudSyncMsg(`Moment ${momentId} är nu GODKÄNT och signerat!`);
+    setTimeout(() => {
+      setCloudSyncMsg(null);
+      setRecentApprovedMomentId((prev) => (prev === momentId ? null : prev));
+    }, 4500);
   };
 
   // Cloud sync
@@ -503,344 +560,514 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
         className="hidden"
       />
 
-      {/* TOP HEADER & TOOLBAR (Kolfärgad #1a1a1a bakgrund) */}
-      <div className="bg-[#1a1a1a] border-2 border-[#282828] rounded-3xl p-6 sm:p-7 shadow-xl space-y-5">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
+      {/* REN TOPPRAD — Inga utspridda filter eller stora rutor i toppen */}
+      <div className="bg-[#161616] border border-[#262626] rounded-2xl p-4 sm:p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               type="button"
               onClick={onBackToDashboard}
-              className="w-12 h-12 rounded-2xl bg-[#141414] hover:bg-[#222222] text-white flex items-center justify-center border border-[#333333] cursor-pointer transition-colors shrink-0"
-              title="Tillbaka till projektöversikten"
+              className="w-10 h-10 rounded-xl bg-[#121212] hover:bg-[#222222] text-white flex items-center justify-center border border-[#2e2e2e] cursor-pointer transition-colors shrink-0"
+              title="Tillbaka till översikten"
             >
-              <ArrowLeft className="w-6 h-6" />
+              <ArrowLeft className="w-5 h-5" />
             </button>
-            <div className="space-y-1">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-xs font-bold text-orange-400 bg-orange-950/60 border border-orange-800/80 px-2.5 py-0.5 rounded-full">
+                <h1 className="text-lg sm:text-xl font-black text-white tracking-tight truncate">
+                  {project.name}
+                </h1>
+                <span className="text-[11px] font-bold text-slate-300 bg-[#202020] border border-[#333] px-2 py-0.5 rounded-md">
                   {typeInfo.title}
                 </span>
-                {project.propertyDesignation && (
-                  <span className="text-xs text-slate-400 font-mono">
-                    {project.propertyDesignation}
-                  </span>
-                )}
-                {project.exerciseSettings?.examMode && (
-                  <span className="text-[11px] font-black uppercase bg-rose-950 text-rose-300 border border-rose-700 px-2.5 py-0.5 rounded-full">
-                    🎓 Praktiskt Provläge
-                  </span>
-                )}
-                {project.exerciseSettings?.gradingScale && (
-                  <span className="text-[11px] font-bold bg-[#141414] text-emerald-400 border border-emerald-800/60 px-2.5 py-0.5 rounded-full">
-                    Bedömning: {project.exerciseSettings.gradingScale === 'GY25_F_TO_A' ? 'GY25 (F–A)' : project.exerciseSettings.gradingScale === 'PASS_FAIL' ? 'Godkänd / Icke godkänd' : 'Återkoppling'}
+                {!vocab.hideSchoolFeatures && project.exerciseSettings?.examMode && (
+                  <span className="text-[10px] font-bold uppercase bg-rose-950 text-rose-300 border border-rose-700 px-2 py-0.5 rounded-md">
+                    Provläge
                   </span>
                 )}
               </div>
-              <h1 className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-snug">
-                {project.name}
-              </h1>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-slate-400 mt-0.5">
+                <span>
+                  <strong className="text-white font-mono">{completedCount}/{totalCount}</strong> moment godkända ({progressPercent}%)
+                </span>
+                {project.propertyDesignation && (
+                  <span>• {project.propertyDesignation}</span>
+                )}
+                {project.fieldMeasurements?.diagonal && (
+                  <span className="text-amber-400 font-mono">
+                    • Kryssmått: {project.fieldMeasurements.diagonal.toFixed(2)} m
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Snabba Fältverktyg i toppen - Tydliga, förklarade knappar */}
-          <div className="flex flex-wrap items-center gap-2">
-            {/* 1. Snabbfota (Skarpt orange) */}
+          {/* Knappar i toppen: Filter & Vy | Verktyg | Snabbfota */}
+          <div className="flex flex-wrap items-center gap-2 shrink-0">
+            {/* 1. FILTER & VY KNAPP (Faser, Status & Layout ligger samlade här under!) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsFilterPanelOpen(!isFilterPanelOpen);
+                setIsToolsPanelOpen(false);
+              }}
+              className={`min-h-[40px] px-3.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border cursor-pointer transition-colors ${
+                isFilterPanelOpen || selectedPhase !== 'ALL' || statusFilter !== 'ALL'
+                  ? 'bg-orange-500/15 border-orange-500/60 text-orange-300'
+                  : 'bg-[#121212] hover:bg-[#222222] text-slate-200 border-[#2e2e2e]'
+              }`}
+            >
+              <Filter className="w-3.5 h-3.5 text-orange-400" />
+              <span>Filter & Vy</span>
+              {(selectedPhase !== 'ALL' || statusFilter !== 'ALL') && (
+                <span className="w-2 h-2 rounded-full bg-orange-400" />
+              )}
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${
+                  isFilterPanelOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {/* 2. FÄLTVERKTYG KNAPP (Försyn, Kryssmått, Fotopärm, Fältbok) */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsToolsPanelOpen(!isToolsPanelOpen);
+                setIsFilterPanelOpen(false);
+              }}
+              className={`min-h-[40px] px-3.5 rounded-xl font-bold text-xs flex items-center gap-1.5 border cursor-pointer transition-colors ${
+                isToolsPanelOpen
+                  ? 'bg-orange-500/15 border-orange-500/60 text-orange-300'
+                  : 'bg-[#121212] hover:bg-[#222222] text-slate-200 border-[#2e2e2e]'
+              }`}
+            >
+              <Wrench className="w-3.5 h-3.5 text-orange-400" />
+              <span>Verktyg</span>
+              <ChevronDown
+                className={`w-3.5 h-3.5 transition-transform ${
+                  isToolsPanelOpen ? 'rotate-180' : ''
+                }`}
+              />
+            </button>
+
+            {/* 3. SNABBFOTA */}
             <button
               type="button"
               onClick={() => setIsPhotoMenuOpen(true)}
-              className="min-h-[46px] px-4 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-sm rounded-xl flex items-center gap-2 cursor-pointer shadow-md shadow-orange-500/20 transition-all"
+              className="min-h-[40px] px-3.5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-all"
               title="Snabbfota till valfritt moment"
             >
-              <Camera className="w-4 h-4 stroke-[2.5]" />
+              <Camera className="w-3.5 h-3.5 stroke-[2.5]" />
               <span>Snabbfota</span>
             </button>
-
-            {/* 2. Fotopärm */}
-            <button
-              type="button"
-              onClick={() => setIsArchiveOpen(true)}
-              className="min-h-[46px] px-4 bg-[#181818] hover:bg-[#222222] text-slate-200 border border-[#333333] font-bold text-sm rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-              title="Öppna fotopärmen"
-            >
-              <FolderOpen className="w-4 h-4 text-orange-400" />
-              <span>Fotopärm ({totalPhotosCount})</span>
-            </button>
-
-            {/* 3. Kryssmått */}
-            <button
-              type="button"
-              onClick={() => setIsCrossMeasureOpen(true)}
-              className="min-h-[46px] px-4 bg-[#181818] hover:bg-[#222222] text-amber-400 border border-amber-500/40 font-bold text-sm rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-              title="Kryssmåttsberäknare & 3-4-5 metoden"
-            >
-              <Compass className="w-4 h-4 stroke-[2.2]" />
-              <span>Kryssmått</span>
-            </button>
-
-            {/* 4. Fältboken */}
-            <button
-              type="button"
-              onClick={() => setIsQuickNotesOpen(true)}
-              className="min-h-[46px] px-4 bg-[#181818] hover:bg-[#222222] text-sky-400 border border-sky-500/40 font-bold text-sm rounded-xl flex items-center gap-2 cursor-pointer transition-colors"
-              title="Fältbok för snabba mått och anteckningar"
-            >
-              <FileText className="w-4 h-4" />
-              <span>Fältbok</span>
-            </button>
           </div>
         </div>
 
-        {/* Framstegsindikator */}
-        <div className="space-y-2 pt-1 border-t border-[#262626]">
-          <div className="flex items-center justify-between text-xs sm:text-sm">
-            <span className="text-slate-400 font-medium">
-              Totalt framsteg i utbildningen ({completedCount} av {totalCount} moment godkända):
-            </span>
-            <span className="font-mono font-black text-white text-base">{progressPercent}%</span>
-          </div>
-          <div className="w-full h-3 bg-[#121212] rounded-full overflow-hidden border border-[#2c2c2c]">
-            <div
-              className={`h-full rounded-full transition-all duration-300 ${
-                progressPercent === 100 ? 'bg-emerald-500' : 'bg-orange-500'
-              }`}
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-
-          {cloudSyncMsg && (
-            <div className="p-3 bg-emerald-950/80 border border-emerald-500/80 rounded-xl text-xs sm:text-sm text-emerald-200 flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{cloudSyncMsg}</span>
-            </div>
-          )}
+        {/* Enkel, tunn framstegslinje */}
+        <div className="w-full h-1.5 bg-[#111111] rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-300 ${
+              progressPercent === 100 ? 'bg-emerald-500' : 'bg-orange-500'
+            }`}
+            style={{ width: `${progressPercent}%` }}
+          />
         </div>
 
-        {/* DYNAMISK STATUS: 1. FÖRSYN & SKADEGUIDE */}
-        <div className="pt-2 border-t border-[#262626]">
-          {project.preInspectionCompleted ? (
-            <div className="bg-[#121a14] border border-emerald-700/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-emerald-950 text-emerald-400 border border-emerald-700 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>Försyn & Skadeguide Genomförd</span>
-                    <span className="text-[11px] font-mono bg-emerald-900 text-emerald-300 px-2 py-0.2 rounded-full">
-                      {project.preInspectionPhotos?.length || 0} foton
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-400">
-                    Befintligt skick på fasad, staket och väg dokumenterat före start.
-                  </p>
-                </div>
-              </div>
-              {onOpenTutorial && (
-                <button
-                  type="button"
-                  onClick={onOpenTutorial}
-                  className="px-3.5 py-1.5 bg-[#1a2e20] hover:bg-[#24422e] text-emerald-300 border border-emerald-600 rounded-xl text-xs font-bold cursor-pointer transition-colors shrink-0"
-                >
-                  Visa / Komplettera foton
-                </button>
-              )}
-            </div>
-          ) : project.preInspectionExempted ? (
-            <div className="bg-[#1e1a12] border border-amber-600/50 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl bg-amber-950 text-amber-400 border border-amber-700 flex items-center justify-center shrink-0">
-                  <Info className="w-5 h-5" />
-                </div>
-                <div>
-                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
-                    <span>Försyn Avböjd för denna övning</span>
-                    <span className="text-[11px] bg-amber-950 text-amber-300 border border-amber-800 px-2 py-0.2 rounded-full">
-                      Undantag godkänt
-                    </span>
-                  </h4>
-                  <p className="text-xs text-slate-400">
-                    Motivering: {project.preInspectionExemptReason || 'Praktisk skolövning'}.
-                  </p>
-                </div>
-              </div>
-              {onOpenTutorial && (
-                <button
-                  type="button"
-                  onClick={onOpenTutorial}
-                  className="px-3.5 py-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded-xl text-xs font-bold cursor-pointer transition-colors shrink-0"
-                >
-                  Genomför försyn ändå
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="bg-[#1f1912] border-2 border-orange-500/60 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-orange-950/40">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/40 flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-black uppercase tracking-wider text-orange-400 bg-orange-950/80 px-2 py-0.2 rounded border border-orange-800">
-                      Viktigt moment före schakt
-                    </span>
-                    <h4 className="text-sm font-bold text-white">Försyn & Skadeguide</h4>
-                  </div>
-                  <p className="text-xs text-slate-300 mt-0.5">
-                    Fota grannfastighet, staket och asfalt så att skolan skyddas mot skadeståndskrav.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 w-full sm:w-auto shrink-0">
-                {onOpenTutorial && (
+        {cloudSyncMsg && (
+          <div className="p-2.5 bg-emerald-950/80 border border-emerald-500/60 rounded-xl text-xs text-emerald-200 flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>{cloudSyncMsg}</span>
+          </div>
+        )}
+
+        {/* PANEL 1: FILTER & VY (Öppnas när man klickar på Filter & Vy) */}
+        {isFilterPanelOpen && (
+          <div className="pt-3 border-t border-[#262626] space-y-4 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Filter className="w-3.5 h-3.5 text-orange-400" />
+                <span>Filtrera faser, status & välj layout</span>
+              </span>
+              <div className="flex items-center gap-2">
+                {(selectedPhase !== 'ALL' || statusFilter !== 'ALL') && (
                   <button
                     type="button"
-                    onClick={onOpenTutorial}
-                    className="flex-1 sm:flex-none px-4 py-2 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs sm:text-sm rounded-xl cursor-pointer transition-all active:scale-95 shadow-md shadow-orange-500/20"
+                    onClick={() => {
+                      setSelectedPhase('ALL');
+                      setStatusFilter('ALL');
+                    }}
+                    className="text-[11px] font-bold text-orange-400 hover:underline cursor-pointer"
                   >
-                    Starta fotoguide
+                    Visa alla moment
                   </button>
                 )}
                 <button
                   type="button"
-                  onClick={() => {
-                    setExemptStep(1);
-                    setIsExemptModalOpen(true);
-                  }}
-                  className="px-3 py-2 bg-[#161616] hover:bg-[#252525] text-slate-300 hover:text-white border border-[#383838] rounded-xl text-xs font-bold cursor-pointer transition-colors"
-                  title="Avböj försyn med motivering"
+                  onClick={() => setIsFilterPanelOpen(false)}
+                  className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
                 >
-                  Avböj försyn
+                  <X className="w-4 h-4" />
                 </button>
               </div>
             </div>
-          )}
-        </div>
 
-        {/* DYNAMISK STATUS: 2. FÄLTMÅTT & REGISTRERAT KRYSSMÅTT */}
-        <div className="bg-[#121212] border border-[#2a2a2a] rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center justify-center shrink-0">
-              <Compass className="w-5 h-5 stroke-[2.2]" />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Layout-väljare */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Layout / Utseende:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSetLayoutMode('SIMPLE_LIST')}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border cursor-pointer ${
+                      layoutMode === 'SIMPLE_LIST' || layoutMode === 'GUIDED_STEP'
+                        ? 'bg-orange-500 text-black border-orange-400 font-black'
+                        : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                    }`}
+                  >
+                    <List className="w-3.5 h-3.5" />
+                    <span>Enkel lista</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetLayoutMode('COMPACT')}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border cursor-pointer ${
+                      layoutMode === 'COMPACT'
+                        ? 'bg-orange-500 text-black border-orange-400 font-black'
+                        : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                    }`}
+                  >
+                    <Table className="w-3.5 h-3.5" />
+                    <span>Kompakt</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSetLayoutMode('FIELD_CLEAR')}
+                    className={`py-2 px-2 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 border cursor-pointer ${
+                      layoutMode === 'FIELD_CLEAR'
+                        ? 'bg-orange-500 text-black border-orange-400 font-black'
+                        : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                    }`}
+                  >
+                    <LayoutGrid className="w-3.5 h-3.5" />
+                    <span>Stora kort</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Statusfilter */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                  Filtrera på status:
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                  {[
+                    { id: 'ALL', label: 'Alla' },
+                    { id: 'NOT_APPROVED', label: 'Ej klara' },
+                    { id: 'YELLOW', label: 'Pågående' },
+                    { id: 'GREEN', label: 'Godkända' },
+                  ].map((st) => (
+                    <button
+                      key={st.id}
+                      type="button"
+                      onClick={() => setStatusFilter(st.id as any)}
+                      className={`py-2 px-2 rounded-lg text-xs font-bold border cursor-pointer ${
+                        statusFilter === st.id
+                          ? 'bg-white text-black border-white font-black'
+                          : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                      }`}
+                    >
+                      {st.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-400">
-                  Fältmått & Kryssmått
-                </span>
-                {project.fieldMeasurements?.diagonal ? (
-                  <span className="text-xs font-black font-mono bg-orange-500 text-black px-2 py-0.2 rounded-md">
-                    {project.fieldMeasurements.diagonal.toFixed(2)} m
-                  </span>
-                ) : (
-                  <span className="text-[11px] text-slate-500 font-medium">Ej beräknat</span>
+
+            {/* Faser under Filter-knappen */}
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold uppercase tracking-wider text-slate-400 block">
+                {vocab.phasesLabel}:
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhase('ALL')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${
+                    selectedPhase === 'ALL'
+                      ? 'bg-orange-500 text-black border-orange-400 font-black'
+                      : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                  }`}
+                >
+                  Alla faser ({relevantMoments.length})
+                </button>
+                {phases.map((phase) => {
+                  const pMoments = relevantMoments.filter((m) => m.phaseName === phase);
+                  const pDone = pMoments.filter((m) => project.moments[m.id]?.status === 'GREEN').length;
+                  const isSelected = selectedPhase === phase;
+                  return (
+                    <button
+                      key={phase}
+                      type="button"
+                      onClick={() => setSelectedPhase(phase)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer flex items-center gap-1.5 ${
+                        isSelected
+                          ? 'bg-orange-500 text-black border-orange-400 font-black'
+                          : 'bg-[#121212] text-slate-300 border-[#2a2a2a] hover:text-white'
+                      }`}
+                    >
+                      <span>{phase}</span>
+                      <span className="font-mono text-[10px] opacity-80">
+                        ({pDone}/{pMoments.length})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PANEL 2: FÄLTVERKTYG (Försyn, Kryssmått, Fotopärm, Fältbok) */}
+        {isToolsPanelOpen && (
+          <div className="pt-3 border-t border-[#262626] space-y-3 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Wrench className="w-3.5 h-3.5 text-orange-400" />
+                <span>Fältverktyg & Projekthjälpmedel</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsToolsPanelOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* 1. Kryssmått & Fältmått */}
+              <div className="p-3 rounded-xl bg-[#121212] border border-[#2a2a2a] flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <Compass className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Kryssmått & 3-4-5</span>
+                    {project.fieldMeasurements?.diagonal && (
+                      <span className="font-mono text-[11px] bg-orange-500 text-black px-1.5 py-0.2 rounded font-bold">
+                        {project.fieldMeasurements.diagonal.toFixed(2)} m
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    {project.fieldMeasurements?.diagonal
+                      ? `Sida A: ${project.fieldMeasurements.sideA} m • Sida B: ${project.fieldMeasurements.sideB} m`
+                      : 'Räkna ut diagonalen automatiskt'}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsToolsPanelOpen(false);
+                    setIsCrossMeasureOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-[#1e1e1e] hover:bg-[#2a2a2a] text-amber-300 border border-[#383838] rounded-lg text-xs font-bold cursor-pointer shrink-0"
+                >
+                  Öppna
+                </button>
+              </div>
+
+              {/* 2. Försyn & Skadeguide */}
+              <div className="p-3 rounded-xl bg-[#121212] border border-[#2a2a2a] flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-white flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-orange-400" />
+                    <span>Försyn & Skadeguide</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded font-bold ${
+                        project.preInspectionCompleted
+                          ? 'bg-emerald-950 text-emerald-300 border border-emerald-800'
+                          : project.preInspectionExempted
+                          ? 'bg-amber-950 text-amber-300 border border-amber-800'
+                          : 'bg-[#222] text-slate-400'
+                      }`}
+                    >
+                      {project.preInspectionCompleted
+                        ? `${project.preInspectionPhotos?.length || 0} foton`
+                        : project.preInspectionExempted
+                        ? 'Avböjd'
+                        : 'Ej fotad'}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-400 truncate mt-0.5">
+                    Dokumentera fasad, staket & asfalt före schakt
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  {onOpenTutorial && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsToolsPanelOpen(false);
+                        onOpenTutorial();
+                      }}
+                      className="px-3 py-1.5 bg-orange-500 hover:bg-orange-400 text-black font-bold rounded-lg text-xs cursor-pointer"
+                    >
+                      Fota
+                    </button>
+                  )}
+                  {!project.preInspectionCompleted && !project.preInspectionExempted && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsToolsPanelOpen(false);
+                        setExemptStep(1);
+                        setIsExemptModalOpen(true);
+                      }}
+                      className="px-2.5 py-1.5 bg-[#1e1e1e] hover:bg-[#2a2a2a] text-slate-300 border border-[#333] rounded-lg text-xs font-medium cursor-pointer"
+                    >
+                      Avböj
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* 3. Fotopärm & Fältbok & Bygghjälp */}
+              <div className="sm:col-span-2 flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsToolsPanelOpen(false);
+                    setIsArchiveOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-[#121212] hover:bg-[#1e1e1e] text-slate-200 border border-[#2c2c2c] rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FolderOpen className="w-3.5 h-3.5 text-orange-400" />
+                  <span>Fotopärm ({totalPhotosCount} bilder)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsToolsPanelOpen(false);
+                    setIsQuickNotesOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-[#121212] hover:bg-[#1e1e1e] text-slate-200 border border-[#2c2c2c] rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <FileText className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Fältbok & Måttnoteringar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsToolsPanelOpen(false);
+                    setHelperMoment(null);
+                    setIsFieldHelperOpen(true);
+                  }}
+                  className="px-3.5 py-2 bg-[#121212] hover:bg-[#1e1e1e] text-slate-200 border border-[#2c2c2c] rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Bot className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Bygghjälp & Problemlösare (AMA)</span>
+                </button>
+
+                {onOpenRevisions && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsToolsPanelOpen(false);
+                      onOpenRevisions();
+                    }}
+                    className="px-3.5 py-2 bg-[#121212] hover:bg-[#1e1e1e] text-slate-200 border border-[#2c2c2c] rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <History className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Versionshistorik</span>
+                  </button>
                 )}
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                {project.fieldMeasurements?.diagonal
-                  ? `Längd: ${project.fieldMeasurements.sideA || '-'} m • Bredd: ${project.fieldMeasurements.sideB || '-'} m. Måttet fylls i automatiskt i dina arbetsmoment!`
-                  : 'Ange övningens sidomått så beräknas kryssmåttet automatiskt och visas som hjälpmedel i momenten.'}
-              </p>
             </div>
+          </div>
+        )}
+      </div>
+
+      {/* Aktiv filterindikator (visas endast om ett filter är valt) */}
+      {(selectedPhase !== 'ALL' || statusFilter !== 'ALL') && !isFilterPanelOpen && (
+        <div className="flex items-center justify-between bg-[#161616] border border-[#282828] rounded-xl px-3.5 py-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-slate-300">
+            <span className="text-slate-500">Aktivt filter:</span>
+            {selectedPhase !== 'ALL' && (
+              <span className="px-2 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30 font-bold">
+                {selectedPhase}
+              </span>
+            )}
+            {statusFilter !== 'ALL' && (
+              <span className="px-2 py-0.5 rounded bg-orange-500/15 text-orange-300 border border-orange-500/30 font-bold">
+                {statusFilter === 'NOT_APPROVED'
+                  ? 'Ej klara'
+                  : statusFilter === 'GREEN'
+                  ? 'Godkända'
+                  : 'Pågående'}
+              </span>
+            )}
           </div>
           <button
             type="button"
-            onClick={() => setIsCrossMeasureOpen(true)}
-            className="px-4 py-2 bg-[#1c1c1c] hover:bg-[#262626] text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold cursor-pointer transition-colors shrink-0"
+            onClick={() => {
+              setSelectedPhase('ALL');
+              setStatusFilter('ALL');
+            }}
+            className="text-orange-400 hover:underline font-bold cursor-pointer"
           >
-            {project.fieldMeasurements?.diagonal ? 'Ändra kryssmått' : 'Mata in mått'}
+            Rensa filter ✕
           </button>
         </div>
-      </div>
+      )}
 
-      {/* FASVÄLJARE / FILTER (Ren och gubbsäker) */}
-      <div className="space-y-2.5">
-        <div className="flex items-center justify-between px-1">
-          <span className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-            <Layers className="w-4 h-4 text-orange-400" />
-            Utbildningens Faser:
-          </span>
-          <span className="text-xs text-slate-400 font-medium">
-            {selectedPhase === 'ALL' ? `Visar alla ${phases.length} faser` : selectedPhase}
-          </span>
-        </div>
-
-        {/* Fas-knappar */}
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setSelectedPhase('ALL')}
-            className={`min-h-[44px] px-4 rounded-xl text-xs sm:text-sm font-bold border transition-colors cursor-pointer ${
-              selectedPhase === 'ALL'
-                ? 'bg-orange-500 text-black border-orange-400 font-black'
-                : 'bg-[#1a1a1a] text-slate-300 border-[#2d2d2d] hover:border-[#3d3d3d]'
-            }`}
-          >
-            Alla faser ({relevantMoments.length} moment)
-          </button>
-
-          {phases.map((phase) => {
-            const pMoments = relevantMoments.filter((m) => m.phaseName === phase);
-            const pDone = pMoments.filter((m) => project.moments[m.id]?.status === 'GREEN').length;
-            const isAllDone = pDone === pMoments.length && pMoments.length > 0;
-            const isSelected = selectedPhase === phase;
-
-            return (
-              <button
-                key={phase}
-                type="button"
-                onClick={() => setSelectedPhase(phase)}
-                className={`min-h-[44px] px-4 rounded-xl text-xs sm:text-sm font-bold border transition-colors cursor-pointer flex items-center gap-2 ${
-                  isSelected
-                    ? 'bg-orange-500 text-black border-orange-400 font-black'
-                    : isAllDone
-                    ? 'bg-[#16201a] border-emerald-800 text-emerald-300'
-                    : 'bg-[#1a1a1a] text-slate-300 border-[#2d2d2d] hover:border-[#3d3d3d]'
-                }`}
-              >
-                <span>{phase}</span>
-                <span
-                  className={`text-[11px] px-1.5 py-0.2 rounded font-mono ${
-                    isSelected
-                      ? 'bg-black/20 text-black font-black'
-                      : isAllDone
-                      ? 'bg-emerald-950 text-emerald-400 font-bold'
-                      : 'bg-[#141414] text-slate-400'
-                  }`}
-                >
-                  {pDone}/{pMoments.length}
-                </span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* CHECKLISTA - RENA RADER MED MYCKET LUFT OCH TYDLIG FASHIERARKI */}
-      <div className="space-y-6">
+      {/* CHECKLISTA - ANPASSAD EFTER VALD LAYOUT (Enkel lista utan bling som standard) */}
+      <div className="space-y-5">
         {phases
           .filter((phase) => selectedPhase === 'ALL' || selectedPhase === phase)
           .map((phaseName) => {
-            const phaseMoments = relevantMoments.filter((m) => m.phaseName === phaseName);
-            const phaseCompleted = phaseMoments.filter(
+            const allPhaseMoments = relevantMoments.filter((m) => m.phaseName === phaseName);
+            const phaseCompleted = allPhaseMoments.filter(
               (m) => project.moments[m.id]?.status === 'GREEN'
             ).length;
 
+            const phaseMoments = allPhaseMoments.filter((m) => {
+              const st = project.moments[m.id]?.status || 'RED';
+              if (statusFilter === 'NOT_APPROVED') return st !== 'GREEN';
+              if (statusFilter === 'GREEN') return st === 'GREEN';
+              if (statusFilter === 'YELLOW') return st === 'YELLOW';
+              return true;
+            });
+
+            if (phaseMoments.length === 0) return null;
+
+            const isSimpleOrCompact = layoutMode === 'SIMPLE_LIST' || layoutMode === 'COMPACT';
+
             return (
-              <div key={phaseName} className="space-y-3">
-                {/* 3. CHECKLISTA: Gruppera momenten under tydliga rubrikrader baserat på utbildningens Faser */}
-                <div className="flex items-center justify-between px-2 pt-2 border-b border-[#262626] pb-2">
-                  <h2 className="text-base sm:text-lg font-black text-white tracking-wide uppercase flex items-center gap-2">
-                    <span className="text-orange-400">■</span>
+              <div key={phaseName} className="space-y-2">
+                {/* Fasrubrik */}
+                <div className="flex items-center justify-between px-1">
+                  <h2 className="text-xs sm:text-sm font-black text-slate-300 tracking-wider uppercase flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-xs bg-orange-400 inline-block"></span>
                     <span>{phaseName}</span>
                   </h2>
-                  <span className="text-xs font-bold font-mono text-slate-400">
-                    {phaseCompleted} av {phaseMoments.length} klara
+                  <span className="text-xs font-mono text-slate-400">
+                    {phaseCompleted}/{allPhaseMoments.length} klara
                   </span>
                 </div>
 
-                {/* Momentraderna i fasen */}
-                <div className="space-y-3">
+                {/* Momentrader i fasen */}
+                <div
+                  className={
+                    isSimpleOrCompact
+                      ? 'bg-[#161616] border border-[#262626] rounded-xl divide-y divide-[#232323] overflow-hidden'
+                      : 'space-y-3'
+                  }
+                >
                   {phaseMoments.map((moment) => {
                     const record: MomentRecord = project.moments[moment.id] || {
                       momentId: moment.id,
@@ -869,66 +1096,106 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                     return (
                       <div
                         key={moment.id}
-                        className={`rounded-3xl border-2 transition-all overflow-hidden ${
-                          status === 'GREEN'
-                            ? 'bg-[#151c17] border-emerald-800/80 shadow-lg'
-                            : status === 'YELLOW'
-                            ? 'bg-[#1c1a14] border-orange-800/80 shadow-lg'
-                            : 'bg-[#1a1a1a] border-[#2c2c2c] hover:border-[#3c3c3c]'
-                        }`}
+                        className={
+                          isSimpleOrCompact
+                            ? `transition-colors ${
+                                status === 'GREEN'
+                                  ? 'bg-emerald-950/15'
+                                  : isExpanded
+                                  ? 'bg-[#1a1a1a]'
+                                  : 'hover:bg-[#1b1b1b]'
+                              }`
+                            : `rounded-2xl border transition-all overflow-hidden ${
+                                status === 'GREEN'
+                                  ? 'bg-[#112117] border-emerald-500/70'
+                                  : status === 'YELLOW'
+                                  ? 'bg-[#1c1a14] border-orange-700/70'
+                                  : 'bg-[#181818] border-[#2c2c2c]'
+                              }`
+                        }
                       >
-                        {/* MOMENTRAD: Mycket luft, Momentets namn till vänster, AMA-koden högerjusterad */}
+                        {/* MOMENTRAD: Avskalad och tydlig utan visuell röra */}
                         <div
                           onClick={() => toggleMomentExpand(moment.id)}
-                          className="p-5 sm:p-6 flex items-center justify-between gap-4 cursor-pointer touch-manipulation select-none"
+                          className={`${
+                            layoutMode === 'COMPACT'
+                              ? 'px-3.5 py-2.5'
+                              : isSimpleOrCompact
+                              ? 'px-4 py-3.5'
+                              : 'p-4 sm:p-5'
+                          } flex items-center justify-between gap-3 cursor-pointer touch-manipulation select-none`}
                         >
-                          {/* Vänster: Statusikon och Momentets namn med mycket luft */}
-                          <div className="flex items-center gap-4 min-w-0 flex-1">
-                            {/* Stor, tydlig statuscirkel */}
-                            <div
-                              className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border-2 font-black transition-all ${
+                          {/* Vänster: Klickbar bockruta + Momentets namn */}
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleSetStatus(moment, status === 'GREEN' ? 'YELLOW' : 'GREEN');
+                              }}
+                              title={
                                 status === 'GREEN'
-                                  ? 'bg-emerald-500 border-emerald-400 text-black shadow-md shadow-emerald-500/20'
+                                  ? 'Momentet är godkänt! Klicka för att ändra till pågående'
+                                  : 'Klicka för att snabbt markera momentet som Godkänt'
+                              }
+                              className={`${
+                                layoutMode === 'COMPACT' ? 'w-7 h-7 rounded-lg' : 'w-8 h-8 rounded-lg'
+                              } flex items-center justify-center shrink-0 border font-bold transition-all cursor-pointer active:scale-90 ${
+                                status === 'GREEN'
+                                  ? 'bg-emerald-500 border-emerald-400 text-black'
                                   : status === 'YELLOW'
-                                  ? 'bg-orange-500 border-orange-400 text-black shadow-md shadow-orange-500/20'
-                                  : 'bg-[#141414] border-[#383838] text-slate-500'
+                                  ? 'bg-orange-500/20 border-orange-400 text-orange-300'
+                                  : 'bg-[#111111] border-[#363636] hover:border-emerald-500/60 text-slate-600 hover:text-emerald-400'
                               }`}
                             >
                               {status === 'GREEN' ? (
-                                <Check className="w-5 h-5 stroke-[3.5]" />
+                                <Check className="w-4 h-4 stroke-[3.5]" />
                               ) : status === 'YELLOW' ? (
-                                <span className="w-3 h-3 rounded-full bg-black"></span>
+                                <span className="w-2 h-2 rounded-full bg-orange-400" />
                               ) : (
-                                <span className="w-3 h-3 rounded-full bg-slate-600"></span>
+                                <Check className="w-3.5 h-3.5 opacity-30" />
                               )}
-                            </div>
+                            </button>
 
-                            {/* Momentets namn med stor, luftig typografi */}
-                            <div className="space-y-0.5 min-w-0 flex-1">
-                              <h3 className="text-base sm:text-xl font-black text-white truncate leading-snug">
-                                {moment.title}
-                              </h3>
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-slate-400 font-mono">
-                                  Moment {moment.id}
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-xs font-mono text-slate-400 shrink-0">
+                                  {moment.id}
                                 </span>
+                                <h3
+                                  className={`${
+                                    layoutMode === 'COMPACT'
+                                      ? 'text-xs sm:text-sm'
+                                      : 'text-sm sm:text-base'
+                                  } font-bold truncate ${
+                                    status === 'GREEN' ? 'text-emerald-200' : 'text-white'
+                                  }`}
+                                >
+                                  {moment.title}
+                                </h3>
                                 {status === 'GREEN' && (
-                                  <span className="text-xs font-bold text-emerald-400">
-                                    • Godkänd & Signerad
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2 py-0.2 rounded">
+                                    ✓ Godkänt
                                   </span>
                                 )}
                                 {status === 'YELLOW' && (
-                                  <span className="text-xs font-bold text-orange-400">
-                                    • Påbörjad
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.2 rounded">
+                                    Pågår
                                   </span>
                                 )}
                               </div>
                             </div>
                           </div>
 
-                          {/* Höger: AMA-koden högerjusterad & expand-pil */}
-                          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-                            {/* AI-Hjälpare Snabbknapp på varje moment */}
+                          {/* Höger: Fotobadge, AMA-kod & Pil */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {photos.length > 0 && (
+                              <span className="text-[11px] font-mono font-bold text-emerald-300 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <Camera className="w-3 h-3" />
+                                <span>{photos.length}</span>
+                              </span>
+                            )}
+
                             {project.exerciseSettings?.allowAiHelper !== false && (
                               <button
                                 type="button"
@@ -936,33 +1203,22 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                                   e.stopPropagation();
                                   handleOpenMomentAiHelper(moment);
                                 }}
-                                className="px-2.5 sm:px-3 py-1.5 rounded-xl bg-sky-950/80 hover:bg-sky-900 border border-sky-500/50 hover:border-sky-400 text-sky-300 hover:text-white flex items-center gap-1.5 text-xs font-bold transition-all shadow-sm active:scale-95 cursor-pointer shrink-0"
-                                title={`Fråga AI-hjälparen om moment ${moment.id}`}
+                                className="p-1.5 rounded-lg bg-[#1e1e1e] hover:bg-[#2a2a2a] border border-[#333] text-sky-400 hover:text-sky-300 cursor-pointer"
+                                title={`Förklara moment ${moment.id} (AMA)`}
                               >
-                                <Bot className="w-3.5 h-3.5 text-sky-400" />
-                                <span className="hidden sm:inline">AI-hjälpare</span>
+                                <HelpCircle className="w-3.5 h-3.5" />
                               </button>
                             )}
 
-                            {/* Högerjusterad AMA-kod */}
-                            <span className="text-xs sm:text-sm font-mono font-black text-orange-400 bg-orange-950/60 border border-orange-800/80 px-3 py-1.5 rounded-xl tracking-wide">
-                              AMA: {moment.amaCode}
+                            <span className="text-[11px] font-mono text-slate-400 bg-[#121212] border border-[#2a2a2a] px-2 py-0.5 rounded-md hidden sm:inline-block">
+                              {moment.amaCode}
                             </span>
 
-                            {/* Fotobadge om foton finns */}
-                            {photos.length > 0 && (
-                              <span className="text-xs font-bold text-emerald-300 bg-emerald-950/80 border border-emerald-700 px-2.5 py-1 rounded-xl flex items-center gap-1">
-                                <Camera className="w-3.5 h-3.5" />
-                                <span>{photos.length}</span>
-                              </span>
-                            )}
-
-                            {/* Expanderingsknapp */}
-                            <div className="w-10 h-10 rounded-xl bg-[#141414] border border-[#333333] flex items-center justify-center text-slate-300">
+                            <div className="text-slate-400 pl-1">
                               {isExpanded ? (
-                                <ChevronUp className="w-5 h-5 text-orange-400" />
+                                <ChevronUp className="w-4 h-4 text-orange-400" />
                               ) : (
-                                <ChevronDown className="w-5 h-5" />
+                                <ChevronDown className="w-4 h-4" />
                               )}
                             </div>
                           </div>
@@ -971,13 +1227,87 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                         {/* 4. DETALJVY (Inuti ett moment): Tydlig vertikal kedja med mycket tomrum ("breathing room") emellan */}
                         {isExpanded && (
                           <div className="p-6 sm:p-8 border-t-2 border-[#262626] bg-[#121212] space-y-8">
-                            {/* ELEMENT 1 (Överst): En låst textruta med stor och tydlig typografi för "Skolans Arbetsinstruktion" */}
+                            {/* SNABBSTATUS & GODKÄNNANDE-BANNER HÖGST UPP I MOMENTET */}
+                            <div
+                              className={`p-4 sm:p-5 rounded-2xl border-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${
+                                status === 'GREEN'
+                                  ? 'bg-emerald-950/60 border-emerald-500 text-emerald-100 shadow-lg shadow-emerald-950/40'
+                                  : status === 'YELLOW'
+                                  ? 'bg-amber-950/40 border-amber-500/60 text-amber-100'
+                                  : 'bg-[#181818] border-[#2e2e2e] text-slate-200'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <div
+                                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 font-black ${
+                                    status === 'GREEN'
+                                      ? 'bg-emerald-500 text-black'
+                                      : status === 'YELLOW'
+                                      ? 'bg-amber-500 text-black'
+                                      : 'bg-[#242424] text-slate-400'
+                                  }`}
+                                >
+                                  {status === 'GREEN' ? (
+                                    <CheckCircle2 className="w-6 h-6 stroke-[2.5]" />
+                                  ) : (
+                                    <ShieldCheck className="w-5 h-5" />
+                                  )}
+                                </div>
+                                <div>
+                                  <div className="text-xs sm:text-sm font-black uppercase tracking-wider">
+                                    {status === 'GREEN'
+                                      ? '✓ DETTA MOMENT ÄR GODKÄNT & KLART'
+                                      : status === 'YELLOW'
+                                      ? 'MOMENTET ÄR PÅBÖRJAT (EJ SLUTGODKÄNT ÄN)'
+                                      : 'STATUS: EJ PÅBÖRJAT MOMENT'}
+                                  </div>
+                                  <p className="text-xs text-slate-300 mt-0.5">
+                                    {status === 'GREEN'
+                                      ? `${record.signature || 'Signerat'} ${record.completedAt ? `(${record.completedAt})` : ''}`
+                                      : 'Klicka på "Godkänn moment" när kontrollen är utförd, eller signera med fingret längst ner.'}
+                                  </p>
+                                </div>
+                              </div>
+
+                              <div className="flex flex-wrap items-center gap-2 shrink-0">
+                                {status !== 'GREEN' ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetStatus(moment, 'GREEN')}
+                                    className="min-h-[42px] px-4 bg-emerald-500 hover:bg-emerald-400 active:scale-95 text-black font-black text-xs sm:text-sm rounded-xl flex items-center gap-1.5 cursor-pointer shadow-md shadow-emerald-500/20 transition-all"
+                                  >
+                                    <Check className="w-4 h-4 stroke-[3]" />
+                                    <span>Godkänn moment direkt</span>
+                                  </button>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetStatus(moment, 'YELLOW')}
+                                    className="min-h-[40px] px-3.5 bg-[#16281e] hover:bg-[#1f382a] text-emerald-300 border border-emerald-600 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+                                  >
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                    <span>Ändra till pågående</span>
+                                  </button>
+                                )}
+
+                                {status !== 'RED' && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleSetStatus(moment, 'RED')}
+                                    className="min-h-[40px] px-3 bg-[#1c1c1c] hover:bg-rose-950/60 text-slate-400 hover:text-rose-300 border border-[#333] rounded-xl text-xs font-bold cursor-pointer transition-colors"
+                                  >
+                                    Nollställ
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            {/* ELEMENT 1 (Överst): En låst textruta med stor och tydlig typografi */}
                             <div className="bg-[#181818] border-2 border-[#2a2a2a] rounded-3xl p-6 sm:p-7 space-y-4 shadow-md">
                               <div className="flex items-center justify-between border-b border-[#2a2a2a] pb-3">
                                 <div className="flex items-center gap-2">
                                   <Lock className="w-5 h-5 text-orange-400" />
                                   <h4 className="text-sm sm:text-base font-black uppercase tracking-wider text-orange-400">
-                                    Skolans Arbetsinstruktion (Låst krav)
+                                    {vocab.instructionHeading}
                                   </h4>
                                 </div>
                                 <span className="text-xs font-mono font-bold text-slate-400 bg-[#121212] px-2.5 py-1 rounded-lg border border-[#333333]">
@@ -1071,11 +1401,11 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                                   </p>
                                 </div>
 
-                                {/* Yrkeslärarens / Handledarens fältråd */}
+                                {/* Branschråd / Handledarens / Yrkeslärarens fältråd */}
                                 <div className="bg-[#121212] border border-[#333333] rounded-2xl p-4 space-y-1.5">
                                   <span className="text-xs font-black uppercase tracking-wider text-amber-400 flex items-center gap-1.5">
                                     <Sparkles className="w-4 h-4" />
-                                    Yrkeslärarens fältråd:
+                                    {vocab.proTipHeading}
                                   </span>
                                   <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
                                     {moment.proTip}
@@ -1083,13 +1413,13 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                                 </div>
                               </div>
 
-                              {/* Lärarens egna del-checklista för momentet (om skapad i Kreatörspanelen) */}
+                              {/* Del-checklista för momentet */}
                               {moment.customChecklist && moment.customChecklist.length > 0 && (
                                 <div className="p-4 rounded-2xl bg-[#121212] border-2 border-emerald-500/40 space-y-2.5">
                                   <div className="flex items-center justify-between">
                                     <span className="text-xs font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
                                       <CheckCircle2 className="w-4 h-4" />
-                                      Lärarens Del-checklista för Momentet (Bocka av):
+                                      {vocab.customChecklistHeading}
                                     </span>
                                     <span className="text-[11px] font-mono text-slate-400">
                                       {moment.customChecklist.filter((item) => record.structuredChecks?.includes(item)).length} av {moment.customChecklist.length} klara
@@ -1177,17 +1507,17 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                               </div>
                             </div>
 
-                            {/* ELEMENT 2 (Mitten): Ett stort, tomt inmatningsfält för "Egen anteckning / Avvikelse / Kommentar till läraren" */}
+                            {/* ELEMENT 2 (Mitten): Egen anteckning / Avvikelse */}
                             <div className="space-y-3">
                               <label className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-200 block">
-                                Egen anteckning / Avvikelse / Kommentar till läraren:
+                                {vocab.commentLabel}
                               </label>
 
                               <textarea
                                 rows={5}
                                 value={record.comment || ''}
                                 onChange={(e) => handleUpdateMomentComment(moment.id, e.target.value)}
-                                placeholder="Skriv egna anteckningar här... T.ex. lasermått, rörfall i mm/m, temperatur, grusfraktion eller frågor till läraren."
+                                placeholder={vocab.commentPlaceholder}
                                 className="w-full min-h-[140px] p-5 bg-[#141414] border-2 border-[#2e2e2e] focus:border-orange-500 rounded-3xl text-white text-base leading-relaxed outline-none resize-y placeholder-slate-500 shadow-inner"
                               />
 
@@ -1295,27 +1625,76 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
                             </div>
 
                             {/* ELEMENT 4 (Längst ner): Bred signaturruta i botten där eleven eller läraren kan signera övningen med fingret */}
-                            <div className="bg-[#181818] border-2 border-[#2c2c2c] rounded-3xl p-6 sm:p-7 space-y-4">
+                            <div
+                              className={`border-2 rounded-3xl p-6 sm:p-7 space-y-5 transition-all ${
+                                status === 'GREEN'
+                                  ? 'bg-[#102216] border-emerald-500 shadow-xl shadow-emerald-950/50'
+                                  : 'bg-[#181818] border-[#2c2c2c]'
+                              }`}
+                            >
                               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#2a2a2a] pb-3">
                                 <div>
                                   <h4 className="text-sm sm:text-base font-black uppercase tracking-wider text-white flex items-center gap-2">
-                                    <PenTool className="w-5 h-5 text-orange-400" />
-                                    <span>Signera momentet med fingret</span>
+                                    {status === 'GREEN' ? (
+                                      <CheckCircle2 className="w-5 h-5 text-emerald-400 stroke-[2.5]" />
+                                    ) : (
+                                      <PenTool className="w-5 h-5 text-orange-400" />
+                                    )}
+                                    <span>
+                                      {status === 'GREEN'
+                                        ? 'Momentet är Godkänt & Signerat'
+                                        : 'Signera & Godkänn momentet med fingret'}
+                                    </span>
                                   </h4>
-                                  <p className="text-xs text-slate-400 mt-0.5">
-                                    Rita din namnteckning direkt i rutan nedan med fingret eller musen.
+                                  <p className="text-xs text-slate-300 mt-0.5">
+                                    {status === 'GREEN'
+                                      ? `Godkänt av: ${record.signature || userSettings.userName || `${vocab.roleStudentShort} / ${vocab.roleTeacherShort}`}`
+                                      : 'Rita din namnteckning direkt i rutan nedan med fingret eller musen och klicka på Godkänn.'}
                                   </p>
                                 </div>
 
-                                {record.completedAt && (
-                                  <span className="text-xs font-mono font-bold text-emerald-400 bg-emerald-950 px-3 py-1 rounded-xl border border-emerald-800">
-                                    Signerat: {record.completedAt}
+                                {status === 'GREEN' && (
+                                  <span className="text-xs font-mono font-black text-black bg-emerald-400 px-3.5 py-1.5 rounded-xl flex items-center gap-1.5 shrink-0 shadow-sm">
+                                    <Check className="w-4 h-4 stroke-[3]" />
+                                    <span>GODKÄNT {record.completedAt ? `• ${record.completedAt}` : ''}</span>
                                   </span>
                                 )}
                               </div>
 
+                              {/* Tydlig grön bekräftelseruta när momentet är godkänt */}
+                              {status === 'GREEN' && (
+                                <div className="p-4 rounded-2xl bg-emerald-950/90 border-2 border-emerald-400 flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in">
+                                  <div className="flex items-center gap-3">
+                                    <div className="w-11 h-11 rounded-2xl bg-emerald-500 text-black flex items-center justify-center shrink-0 font-black shadow-md">
+                                      <Check className="w-6 h-6 stroke-[3.5]" />
+                                    </div>
+                                    <div>
+                                      <span className="text-sm sm:text-base font-black text-emerald-300 block">
+                                        ✅ Moment {moment.id} är godkänt och registrerat i egenkontrollen!
+                                      </span>
+                                      <span className="text-xs text-emerald-100/90 block mt-0.5">
+                                        Signatur: {record.signature || 'Godkänd'} • Tidpunkt: {record.completedAt || 'Idag'}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {record.signatureImage && (
+                                    <div className="bg-[#0a140e] border border-emerald-700 rounded-xl p-2 shrink-0 flex flex-col items-center">
+                                      <img
+                                        src={record.signatureImage}
+                                        alt="Sparad signatur"
+                                        className="h-12 object-contain"
+                                      />
+                                      <span className="text-[10px] font-mono text-emerald-400">
+                                        Sparad namnteckning
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
                               {/* Interaktiv touch canvas för fingerritning */}
-                              <div className="space-y-2">
+                              <div className="space-y-3">
                                 <div className="border-2 border-dashed border-[#444444] rounded-2xl bg-[#0f0f0f] relative overflow-hidden">
                                   <canvas
                                     ref={(el) => {
@@ -1375,30 +1754,60 @@ export const ChecklistView: React.FC<ChecklistViewProps> = ({
 
                                   {/* Hjälptext i bakgrunden */}
                                   <div className="absolute inset-0 pointer-events-none flex items-center justify-center text-slate-700 font-mono text-sm font-bold select-none opacity-40">
-                                    [ RITA SIGNATUR HÄR ]
+                                    {status === 'GREEN'
+                                      ? '[ MOMENT GODKÄNT - RITA HÄR FÖR ATT UPPDATERA SIGNATUR ]'
+                                      : '[ RITA SIGNATUR HÄR ]'}
                                   </div>
                                 </div>
 
                                 {/* Signaturåtgärder */}
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-1">
-                                  <button
-                                    type="button"
-                                    onClick={() => clearSignatureCanvas(moment.id)}
-                                    className="w-full sm:w-auto min-h-[46px] px-5 bg-[#1e1e1e] hover:bg-[#282828] text-slate-300 border border-[#3c3c3c] rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"
-                                  >
-                                    <Eraser className="w-4 h-4" />
-                                    <span>Rensa signatur</span>
-                                  </button>
+                                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                                    <button
+                                      type="button"
+                                      onClick={() => clearSignatureCanvas(moment.id)}
+                                      className="flex-1 sm:flex-none min-h-[46px] px-4 bg-[#1e1e1e] hover:bg-[#282828] text-slate-300 border border-[#3c3c3c] rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-2 cursor-pointer transition-colors"
+                                    >
+                                      <Eraser className="w-4 h-4" />
+                                      <span>Rensa ruta</span>
+                                    </button>
+
+                                    {status === 'GREEN' && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleSetStatus(moment, 'YELLOW')}
+                                        className="flex-1 sm:flex-none min-h-[46px] px-4 bg-amber-950/60 hover:bg-amber-900/80 text-amber-300 border border-amber-700/80 rounded-xl font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                                      >
+                                        <RefreshCw className="w-4 h-4" />
+                                        <span>Ångra godkännande</span>
+                                      </button>
+                                    )}
+                                  </div>
 
                                   <button
                                     type="button"
                                     onClick={() => handleSignMomentWithFinger(moment.id)}
-                                    className="w-full sm:w-auto min-h-[52px] px-8 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-base rounded-2xl flex items-center justify-center gap-2.5 shadow-lg shadow-orange-500/20 cursor-pointer transition-all"
+                                    className={`w-full sm:w-auto min-h-[54px] px-8 font-black text-base rounded-2xl flex items-center justify-center gap-2.5 shadow-lg cursor-pointer transition-all active:scale-95 ${
+                                      status === 'GREEN'
+                                        ? 'bg-emerald-500 hover:bg-emerald-400 text-black shadow-emerald-500/25'
+                                        : 'bg-orange-500 hover:bg-orange-400 text-black shadow-orange-500/20'
+                                    }`}
                                   >
-                                    <Check className="w-5 h-5 stroke-[3]" />
-                                    <span>Godkänn & Signera Moment</span>
+                                    <Check className="w-5 h-5 stroke-[3.5]" />
+                                    <span>
+                                      {status === 'GREEN'
+                                        ? '✓ Momentet är Godkänt & Signerat!'
+                                        : 'Godkänn & Signera Moment'}
+                                    </span>
                                   </button>
                                 </div>
+
+                                {recentApprovedMomentId === moment.id && (
+                                  <div className="p-3 bg-emerald-500 text-black font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 shadow-md animate-in fade-in">
+                                    <CheckCircle2 className="w-5 h-5 stroke-[2.5]" />
+                                    <span>Sparat! Moment {moment.id} är nu markerat som GODKÄNT!</span>
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>

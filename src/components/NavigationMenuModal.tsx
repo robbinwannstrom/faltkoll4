@@ -1,5 +1,10 @@
 import React from 'react';
-import { UserSettings, Project, UserAccount } from '../types';
+import { UserSettings, Project, UserAccount, AppContextMode, AppLayoutMode } from '../types';
+import {
+  getContextVocabulary,
+  getContextualRoleLabel,
+  resolveAppContextMode,
+} from '../utils/contextLabels';
 import { StorageStatusWidget } from './StorageStatusWidget';
 import {
   X,
@@ -56,6 +61,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
   isOpen,
   onClose,
   userSettings,
+  onUpdateUserSettings,
   onOpenSettings,
   onOpenTrashBin,
   onOpenNotices,
@@ -74,11 +80,20 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
   onNavigateToCreate,
   onOpenLogin,
   onLogout,
-  activeProject,
   currentUser,
   unreadNoticesCount = 0,
 }) => {
   if (!isOpen) return null;
+
+  const activeContextMode = resolveAppContextMode(userSettings, currentUser);
+  const vocab = getContextVocabulary(activeContextMode);
+
+  const handleSetMode = (mode: AppContextMode) => {
+    onUpdateUserSettings({
+      ...userSettings,
+      appContextMode: mode,
+    });
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-start bg-black/85 backdrop-blur-xs animate-in fade-in duration-200 font-sans">
@@ -94,7 +109,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
                 FältKoll Meny
               </h3>
               <p className="text-[11px] text-slate-400">
-                Verktyg, inställningar & övningar
+                {vocab.modeTitle} • Verktyg & inställningar
               </p>
             </div>
           </div>
@@ -144,13 +159,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
                   : 'bg-orange-950 text-orange-300 border border-orange-800'
               }`}
             >
-              {currentUser.role === 'ADMIN'
-                ? 'Huvudadmin (Rank 4)'
-                : currentUser.role === 'SCHOOL_ADMIN'
-                ? 'Skoladmin (Rank 3)'
-                : currentUser.role === 'TEACHER'
-                ? 'Lärare (Rank 2)'
-                : 'Elev (Rank 1)'}
+              {getContextualRoleLabel(currentUser.role, activeContextMode)}
             </span>
           ) : (
             onOpenLogin && (
@@ -168,7 +177,89 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
           )}
         </div>
 
-        {/* Lärarpanel: Kreatörspanel för Lärare Direktåtkomst */}
+        {/* Snabbväxlare: Arbetsplats / APL / Skola & Layout */}
+        <div className="px-3 pb-2 space-y-2">
+          <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-2 space-y-1.5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Verksamhetsläge
+              </span>
+              <span className="text-[10px] text-orange-400 font-bold">
+                {vocab.modeTitle}
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-1">
+              {(
+                [
+                  { id: 'WORKPLACE', label: '🏗️ Arbete' },
+                  { id: 'APL', label: '🤝 APL' },
+                  { id: 'SCHOOL', label: '🎓 Skola' },
+                ] as { id: AppContextMode; label: string }[]
+              ).map((m) => {
+                const isSelected = activeContextMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => handleSetMode(m.id)}
+                    className={`py-2 px-2 rounded-xl text-xs font-black transition-all cursor-pointer ${
+                      isSelected
+                        ? 'bg-orange-500 text-black shadow-xs'
+                        : 'bg-[#121212] text-slate-400 hover:text-white border border-[#262626]'
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-2 space-y-1.5">
+            <div className="flex items-center justify-between px-1">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                Layout & Vy
+              </span>
+              <span className="text-[10px] text-slate-400 font-medium">
+                Välj visningsstil
+              </span>
+            </div>
+            <div className="grid grid-cols-4 gap-1">
+              {(
+                [
+                  { id: 'SIMPLE_LIST', label: 'Enkel lista' },
+                  { id: 'COMPACT', label: 'Tabell' },
+                  { id: 'FIELD_CLEAR', label: 'Stora kort' },
+                  { id: 'GUIDED_STEP', label: 'Steg-vy' },
+                ] as { id: AppLayoutMode; label: string }[]
+              ).map((ly) => {
+                const currentLayout = userSettings.appLayoutMode || 'SIMPLE_LIST';
+                const isSelected = currentLayout === ly.id;
+                return (
+                  <button
+                    key={ly.id}
+                    type="button"
+                    onClick={() =>
+                      onUpdateUserSettings({
+                        ...userSettings,
+                        appLayoutMode: ly.id,
+                      })
+                    }
+                    className={`py-1.5 px-1.5 rounded-xl text-[11px] font-bold transition-all cursor-pointer truncate ${
+                      isSelected
+                        ? 'bg-orange-500 text-black font-black'
+                        : 'bg-[#121212] text-slate-400 hover:text-white border border-[#262626]'
+                    }`}
+                  >
+                    {ly.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
+        {/* Mallbyggare / Kreatörspanel */}
         {currentUser?.role !== 'STUDENT' && onOpenExerciseCreator && (
           <div className="px-3 pt-1">
             <button
@@ -177,20 +268,20 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
                 onClose();
                 onOpenExerciseCreator();
               }}
-              className="w-full p-3 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border-2 border-amber-500/40 text-left flex items-center gap-3 transition-all cursor-pointer group shadow-md"
+              className="w-full p-3 rounded-2xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-left flex items-center gap-3 transition-all cursor-pointer group shadow-md"
             >
               <div className="w-10 h-10 rounded-xl bg-amber-500 text-black flex items-center justify-center shrink-0 font-black shadow-sm">
                 <BookOpen className="w-5 h-5 stroke-[2.5]" />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-black text-sm text-white group-hover:text-amber-300 flex items-center justify-between">
-                  <span>Kreatörspanel för Lärare</span>
+                  <span>{vocab.creatorPanelTitle}</span>
                   <span className="text-[10px] bg-amber-950 text-amber-300 border border-amber-800 px-1.5 py-0.2 rounded-md font-bold uppercase">
-                    Lärare
+                    {vocab.roleTeacherShort}
                   </span>
                 </div>
                 <p className="text-[11px] text-slate-300 leading-snug mt-0.5">
-                  Skapa övningar från mallar (med val av faser/moment & inställningar) eller helt från scratch.
+                  {vocab.creatorPanelSubtitle}
                 </p>
               </div>
             </button>
@@ -329,7 +420,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
           {/* SECTION 2: PROJEKT & SAMARBETE */}
           <div className="space-y-1.5 pt-3 border-t border-[#262626]">
             <span className="text-[11px] font-black uppercase tracking-wider text-slate-400 px-1 block">
-              📁 Mina Övningar & Hantering
+              📁 {vocab.projectsHeading} & Hantering
             </span>
 
             {/* Till Översikten (Dashboard) */}
@@ -343,11 +434,11 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
                 className="w-full p-2.5 rounded-xl hover:bg-[#1f1f1f] text-left flex items-center gap-3 transition-colors cursor-pointer text-slate-200 hover:text-white"
               >
                 <Home className="w-4 h-4 text-orange-400" />
-                <span className="font-bold text-sm">Alla Skolövningar (Översikt)</span>
+                <span className="font-bold text-sm">{vocab.projectsHeading} (Översikt)</span>
               </button>
             )}
 
-            {/* Skapa Ny Övning */}
+            {/* Skapa Nytt Projekt / Ny Övning */}
             {onNavigateToCreate && (
               <button
                 type="button"
@@ -358,11 +449,11 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
                 className="w-full p-2.5 rounded-xl hover:bg-[#1f1f1f] text-left flex items-center gap-3 transition-colors cursor-pointer text-slate-200 hover:text-white"
               >
                 <Plus className="w-4 h-4 text-orange-400 stroke-[3]" />
-                <span className="font-bold text-sm">Starta Ny Övning</span>
+                <span className="font-bold text-sm">{vocab.createProjectButton}</span>
               </button>
             )}
 
-            {/* Grupparbete & Molnsynk */}
+            {/* Samarbete & Molnsynk */}
             <button
               type="button"
               onClick={() => {
@@ -372,7 +463,13 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
               className="w-full p-2.5 rounded-xl hover:bg-[#1f1f1f] text-left flex items-center gap-3 transition-colors cursor-pointer text-slate-200 hover:text-white"
             >
               <Share2 className="w-4 h-4 text-emerald-400" />
-              <span className="font-bold text-sm">Grupparbete & Molnsynk</span>
+              <span className="font-bold text-sm">
+                {activeContextMode === 'WORKPLACE'
+                  ? 'Arbetslag & Molnsynk'
+                  : activeContextMode === 'APL'
+                  ? 'APL-delning & Molnsynk'
+                  : 'Grupparbete & Molnsynk'}
+              </span>
             </button>
 
             {/* Versionshistorik (Tidsmaskin) */}
@@ -400,7 +497,9 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
               className="w-full p-2.5 rounded-xl hover:bg-[#1f1f1f] text-left flex items-center gap-3 transition-colors cursor-pointer text-slate-200 hover:text-white"
             >
               <Trash2 className="w-4 h-4 text-rose-400" />
-              <span className="font-bold text-sm">Papperskorg (Borttagna övningar)</span>
+              <span className="font-bold text-sm">
+                Papperskorg (Borttagna {vocab.projectNounPlural})
+              </span>
             </button>
           </div>
 
@@ -410,7 +509,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
               ⚙️ Inställningar & System
             </span>
 
-            {/* Inställningar (Layout & Färgpalett) */}
+            {/* Inställningar (Layout, Verksamhetsläge & Egen Färg) */}
             <button
               type="button"
               onClick={() => {
@@ -424,15 +523,15 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
               </div>
               <div className="min-w-0 flex-1">
                 <div className="font-black text-sm text-white group-hover:text-orange-300">
-                  Inställningar (Layout & Färg)
+                  Inställningar & Egen Färgstudio
                 </div>
                 <div className="text-[11px] text-slate-400 truncate">
-                  Byt färgpalett, fältläge & försyn-regler
+                  Verksamhetsläge, egna färger (Custom) & layout
                 </div>
               </div>
             </button>
 
-            {/* Lärarnotiser */}
+            {/* Notiser */}
             <button
               type="button"
               onClick={() => {
@@ -443,7 +542,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
             >
               <div className="flex items-center gap-3">
                 <Bell className="w-4 h-4 text-sky-400" />
-                <span className="font-bold text-sm">Lärarnotiser & Utskick</span>
+                <span className="font-bold text-sm">{vocab.noticesTitle}</span>
               </div>
               {unreadNoticesCount > 0 && (
                 <span className="text-[10px] font-bold bg-rose-600 text-white px-2 py-0.5 rounded-full">
@@ -452,7 +551,7 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
               )}
             </button>
 
-            {/* Adminpanel & Kontohantering (Demoläge-knapp, behörigheter & elever) */}
+            {/* Kontohantering */}
             <button
               type="button"
               onClick={() => {
@@ -463,27 +562,29 @@ export const NavigationMenuModal: React.FC<NavigationMenuModalProps> = ({
             >
               <div className="flex items-center gap-3">
                 <div className="w-5 h-5 rounded-md bg-purple-600 text-white flex items-center justify-center font-black text-xs shrink-0">
-                  A
+                  {currentUser?.role === 'STUDENT' ? 'M' : 'P'}
                 </div>
                 <div>
                   <span className="font-bold text-sm block group-hover:text-purple-100">
-                    Adminpanel & Konton
+                    {currentUser?.role === 'STUDENT'
+                      ? vocab.myAccountButton
+                      : vocab.accountsViewTitle}
                   </span>
                   <span className="text-[10px] text-purple-300/70 block">
-                    {currentUser?.role === 'ADMIN'
-                      ? `Inloggad som Admin (${currentUser?.displayName || 'Admin'})`
-                      : 'Demoläge, behörigheter & inloggningskontroll'}
+                    {currentUser?.role === 'STUDENT'
+                      ? `Se ditt ${vocab.groupLabel.toLowerCase()} & behörighet`
+                      : `Hantera konton & ${vocab.groupLabelPlural.toLowerCase()}`}
                   </span>
                 </div>
               </div>
               <span
                 className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-md shrink-0 ${
-                  currentUser?.role === 'ADMIN'
+                  currentUser?.role === 'ADMIN' || currentUser?.role === 'SCHOOL_ADMIN'
                     ? 'bg-purple-900 text-purple-200 border border-purple-600'
                     : 'bg-[#252525] text-slate-300 border border-[#3a3a3a]'
                 }`}
               >
-                {currentUser?.role === 'ADMIN' ? 'Admin' : 'Öppna'}
+                {currentUser?.role === 'STUDENT' ? vocab.roleStudentShort : 'Öppna'}
               </span>
             </button>
 

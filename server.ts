@@ -295,8 +295,7 @@ app.post('/api/auth/register', async (req, res) => {
   const normalizedEmail = String(email).trim().toLowerCase();
   const cleanName = String(displayName).trim();
   const cleanPassword = String(password || '1234').trim();
-  const userRole: 'STUDENT' | 'TEACHER' | 'SCHOOL_ADMIN' | 'ADMIN' =
-    role === 'TEACHER' || role === 'SCHOOL_ADMIN' || role === 'ADMIN' ? role : 'STUDENT';
+  const userRole: 'STUDENT' = 'STUDENT';
 
   // Check if user already exists locally or in Firestore
   let existing = cloudState.users.find((u) => u.email.toLowerCase() === normalizedEmail);
@@ -979,9 +978,10 @@ INSTRUKTIONER FÖR SVAR:
     const text = response.text || 'Inget svar kunde genereras.';
     return res.json({ answer: text, isAi: true });
   } catch (err: any) {
-    console.error('Gemini API Error:', err);
-    return res.status(500).json({
-      error: 'Kunde inte anropa AI-modellen: ' + (err?.message || 'okänt fel'),
+    console.warn('Gemini API fallback used:', err?.message || err);
+    return res.json({
+      answer: `[SVAR ENLIGT AMA & BRANSCHSTANDARD]\n\nFråga: "${question}"\n\nVägledning för ${momentTitle || 'momentet'} (AMA ${amaCode || 'Standard'}):\n${instruction ? `• Krav enligt instruktion: ${instruction}\n` : ''}${proTip ? `• Yrkeslärarens fältråd: ${proTip}\n` : ''}${studentTip ? `• Praktiskt tips: ${studentTip}\n` : ''}• Kontrollera alltid höjder, fall och mått med laser/vattenpass och dokumentera med tidsstämplat foto innan momentet byggs in.`,
+      isAi: false,
     });
   }
 });

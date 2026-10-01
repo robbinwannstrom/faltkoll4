@@ -14,7 +14,9 @@ import {
   CheckCircle2,
 } from 'lucide-react';
 import { safeFetchJson } from '../services/apiHelper';
-import { findUserInCloud, saveUserToCloud, STANDARD_STUDENT_GROUPS } from '../services/userService';
+import { findUserInCloud, saveUserToCloud } from '../services/userService';
+import { AppContextMode } from '../types';
+import { getContextVocabulary } from '../utils/contextLabels';
 
 interface LoginViewProps {
   onLoginSuccess: (user: UserAccount, rememberMe: boolean) => void;
@@ -23,6 +25,8 @@ interface LoginViewProps {
 
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }) => {
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [contextMode, setContextMode] = useState<AppContextMode>('WORKPLACE');
+  const vocab = getContextVocabulary(contextMode);
 
   // Login form state
   const [email, setEmail] = useState(() => {
@@ -41,11 +45,17 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
   const [regEmail, setRegEmail] = useState('');
   const [regPassword, setRegPassword] = useState('');
   const [showRegPassword, setShowRegPassword] = useState(false);
-  const [regRole, setRegRole] = useState<UserRole>('STUDENT');
-  const [regSchool, setRegSchool] = useState('Bygg- & Anläggningsutbildning');
-  const [regStudentGroup, setRegStudentGroup] = useState('Byggprogrammet (BA)');
-  const [regSchoolClass, setRegSchoolClass] = useState('BA25');
-  const [regLicenseKey, setRegLicenseKey] = useState('');
+  const [regRole] = useState<UserRole>('STUDENT');
+  const [regSchool, setRegSchool] = useState('');
+  const [regStudentGroup, setRegStudentGroup] = useState(vocab.defaultGroups[0] || 'Mark & Schaktlag');
+  const [regSchoolClass, setRegSchoolClass] = useState('');
+  const [regLicenseKey] = useState('');
+
+  const handleSwitchContext = (nextContext: AppContextMode) => {
+    setContextMode(nextContext);
+    const nextVocab = getContextVocabulary(nextContext);
+    setRegStudentGroup(nextVocab.defaultGroups[0] || '');
+  };
 
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -78,16 +88,11 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
       const match = list.find(
         (u) =>
           u.email.toLowerCase() === normalized ||
-          u.displayName.toLowerCase() === normalized ||
-          (normalized === 'angfar' && (u.email.toLowerCase() === 'angfar@skola.se' || u.displayName.toLowerCase().includes('angfar'))) ||
-          (normalized === 'admin' && u.role === 'ADMIN') ||
-          (normalized === 'larare' && u.role === 'TEACHER') ||
-          (normalized === 'elev' && u.role === 'STUDENT')
+          u.displayName.toLowerCase() === normalized
       );
 
       if (match) {
-        // If match has password, verify it
-        if (match.password && match.password !== enteredPass.trim()) {
+        if (!match.password || match.password !== enteredPass.trim()) {
           return null; // Incorrect password
         }
         return match;
@@ -358,13 +363,20 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
     setIsLoading(true);
 
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const defaultOrg =
+      contextMode === 'WORKPLACE'
+        ? 'Anläggning & Entreprenad'
+        : contextMode === 'APL'
+        ? 'APL-arbetsplats'
+        : 'Bygg- & Anläggningsutbildning';
     const newLocalUser: UserAccount = {
       id: 'usr_' + Date.now() + '_' + Math.random().toString(36).substring(2, 6),
       displayName: cleanName,
       email: cleanEmail,
       role: regRole,
+      accountContext: contextMode,
       password: cleanPass,
-      schoolOrCompany: cleanSchool,
+      schoolOrCompany: regSchool.trim() || defaultOrg,
       studentGroup: regRole === 'STUDENT' ? regStudentGroup : undefined,
       schoolClass: regRole === 'STUDENT' ? regSchoolClass.trim() || undefined : undefined,
       createdAt: now,
@@ -440,12 +452,41 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
             FältKoll
           </h1>
           <p className="text-xs sm:text-sm text-slate-400 max-w-xs mx-auto">
-            Anläggningsutbildning • Egenkontroll & AMA-stöd
+            {vocab.modeSubtitle}
           </p>
         </div>
 
         {/* Login / Register Card */}
-        <div className="bg-[#141414] border-2 border-[#282828] rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl">
+        <div className="bg-[#141414] border border-[#282828] rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl">
+          {/* Välj Verksamhetsläge: Arbetsplats, APL eller Skola */}
+          <div className="space-y-1.5">
+            <label className="text-[11px] font-bold text-slate-400 block text-center">
+              Välj hur du använder FältKoll:
+            </label>
+            <div className="grid grid-cols-3 gap-1 p-1 bg-[#1a1a1a] rounded-xl border border-[#2c2c2c]">
+              {(
+                [
+                  { id: 'WORKPLACE', label: 'Arbetsplats' },
+                  { id: 'APL', label: 'APL / Lärling' },
+                  { id: 'SCHOOL', label: 'Skola' },
+                ] as { id: AppContextMode; label: string }[]
+              ).map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => handleSwitchContext(item.id)}
+                  className={`py-2 px-2 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                    contextMode === item.id
+                      ? 'bg-orange-500 text-black font-black'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           {/* Mode Switch Tabs */}
           <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#1a1a1a] rounded-2xl border border-[#2c2c2c]">
             <button
@@ -509,7 +550,7 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="T.ex. elev@skola.se eller admin"
+                    placeholder="Ange ditt användarnamn eller e-post..."
                     autoComplete="username"
                     className="w-full min-h-[48px] px-4 pl-10 bg-[#1c1c1c] border border-[#333333] focus:border-orange-500 rounded-xl text-sm text-white placeholder:text-slate-500 outline-none transition-colors"
                   />
@@ -607,14 +648,18 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
 
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300 block">
-                  E-post eller Elev-ID / Användarnamn:
+                  E-post eller användarnamn:
                 </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={regEmail}
                     onChange={(e) => setRegEmail(e.target.value)}
-                    placeholder="T.ex. kalle@skola.se"
+                    placeholder={
+                      contextMode === 'WORKPLACE'
+                        ? 'T.ex. kalle@entreprenad.se'
+                        : 'T.ex. kalle@skola.se'
+                    }
                     className="w-full min-h-[46px] px-4 pl-10 bg-[#1c1c1c] border border-[#333333] focus:border-orange-500 rounded-xl text-sm text-white placeholder:text-slate-500 outline-none transition-colors"
                     required
                   />
@@ -650,88 +695,72 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-300 block">
-                    Roll i appen:
+                    Kontotyp:
                   </label>
-                  <select
-                    value={regRole}
-                    onChange={(e) => setRegRole(e.target.value as UserRole)}
-                    className="w-full min-h-[46px] px-3 bg-[#1c1c1c] border border-[#333333] focus:border-orange-500 rounded-xl text-xs font-bold text-white outline-none cursor-pointer"
-                  >
-                    <option value="STUDENT">🎓 Elev / Lärling (Rank 1)</option>
-                    <option value="TEACHER">👨‍🏫 Yrkeslärare (Rank 2)</option>
-                    <option value="SCHOOL_ADMIN">🏫 Skoladmin (Rank 3)</option>
-                  </select>
+                  <div className="w-full min-h-[46px] px-3 bg-[#181818] border border-[#2c2c2c] rounded-xl text-xs font-bold text-emerald-400 flex items-center">
+                    {vocab.rank1Full}
+                  </div>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-xs font-bold text-slate-300 block">
-                    Skola / Utbildningsenhet:
+                    {vocab.orgLabel}:
                   </label>
                   <div className="relative">
                     <input
                       type="text"
                       value={regSchool}
                       onChange={(e) => setRegSchool(e.target.value)}
-                      placeholder="Skola..."
+                      placeholder={
+                        contextMode === 'WORKPLACE'
+                          ? 'T.ex. Mark & Anläggning AB'
+                          : contextMode === 'APL'
+                          ? 'Företag / APL-plats...'
+                          : 'Skola...'
+                      }
                       className="w-full min-h-[46px] px-3 bg-[#1c1c1c] border border-[#333333] focus:border-orange-500 rounded-xl text-xs font-medium text-white outline-none"
                     />
                   </div>
                 </div>
               </div>
 
-              {regRole === 'STUDENT' && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-[#181818] border border-orange-500/30">
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-orange-400 block">
-                      Program / Elevgrupp:
-                    </label>
-                    <select
-                      value={regStudentGroup}
-                      onChange={(e) => setRegStudentGroup(e.target.value)}
-                      className="w-full min-h-[42px] px-3 bg-[#121212] border border-orange-500/50 rounded-xl text-xs font-bold text-white outline-none"
-                    >
-                      {STANDARD_STUDENT_GROUPS.map((grp) => (
-                        <option key={grp} value={grp}>
-                          {grp}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs font-bold text-slate-300 block">
-                      Klass / Beteckning:
-                    </label>
-                    <input
-                      type="text"
-                      value={regSchoolClass}
-                      onChange={(e) => setRegSchoolClass(e.target.value)}
-                      placeholder="T.ex. BA25 eller VUX26"
-                      className="w-full min-h-[42px] px-3 bg-[#121212] border border-[#333] rounded-xl text-xs font-bold text-white outline-none"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {regRole === 'TEACHER' && (
-                <div className="space-y-1 bg-amber-950/40 p-3 rounded-xl border border-amber-800/60">
-                  <label className="text-xs font-bold text-amber-300 block">
-                    Skolans licensnyckel (valfri / standard):
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 p-3 rounded-xl bg-[#181818] border border-[#2e2e2e]">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-orange-400 block">
+                    {vocab.groupLabel}:
                   </label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={regLicenseKey}
-                      onChange={(e) => setRegLicenseKey(e.target.value.toUpperCase())}
-                      placeholder="SKOLA-2026-FALTHJALP"
-                      className="w-full min-h-[42px] px-3 font-mono font-bold bg-[#141414] border border-amber-500/50 rounded-lg text-xs text-white uppercase outline-none"
-                    />
-                  </div>
-                  <span className="text-[10px] text-amber-200/70 block">
-                    Standardkod för utbildningen: <code>SKOLA-2026-FALTHJALP</code>
-                  </span>
+                  <select
+                    value={regStudentGroup}
+                    onChange={(e) => setRegStudentGroup(e.target.value)}
+                    className="w-full min-h-[42px] px-3 bg-[#121212] border border-[#333] rounded-xl text-xs font-bold text-white outline-none"
+                  >
+                    {vocab.defaultGroups.map((grp) => (
+                      <option key={grp} value={grp}>
+                        {grp}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-              )}
+
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-300 block">
+                    {vocab.classOrTeamCodeLabel}:
+                  </label>
+                  <input
+                    type="text"
+                    value={regSchoolClass}
+                    onChange={(e) => setRegSchoolClass(e.target.value)}
+                    placeholder={
+                      contextMode === 'WORKPLACE'
+                        ? 'T.ex. Lag Syd / Proj-102'
+                        : contextMode === 'APL'
+                        ? 'T.ex. APL-HT26'
+                        : 'T.ex. BA25 eller VUX26'
+                    }
+                    className="w-full min-h-[42px] px-3 bg-[#121212] border border-[#333] rounded-xl text-xs font-bold text-white outline-none"
+                  />
+                </div>
+              </div>
 
               <div className="pt-2">
                 <button
