@@ -23,6 +23,13 @@ interface LoginViewProps {
   onCancel?: () => void;
 }
 
+/**
+ * SPARA KODEN: Sätt denna flagga till `true` om du ångrar dig och vill visa
+ * "Skapa nytt konto"-fliken direkt på startsidan/inloggningssidan igen.
+ * När den är `false` kan endast Administratörer och Lärare/Arbetsledare skapa konton.
+ */
+const ALLOW_SELF_REGISTRATION_ON_LOGIN_PAGE = false;
+
 export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }) => {
   const [mode, setMode] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
   const [contextMode, setContextMode] = useState<AppContextMode>('WORKPLACE');
@@ -499,41 +506,43 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
             </div>
           </div>
 
-          {/* Mode Switch Tabs */}
-          <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#1a1a1a] rounded-2xl border border-[#2c2c2c]">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('LOGIN');
-                setErrorMsg(null);
-                setSuccessMsg(null);
-              }}
-              className={`min-h-[42px] rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                mode === 'LOGIN'
-                  ? 'bg-orange-500 text-black shadow-md shadow-orange-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <LogIn className="w-4 h-4 stroke-[2.5]" />
-              <span>Logga in</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('REGISTER');
-                setErrorMsg(null);
-                setSuccessMsg(null);
-              }}
-              className={`min-h-[42px] rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
-                mode === 'REGISTER'
-                  ? 'bg-orange-500 text-black shadow-md shadow-orange-500/20'
-                  : 'text-slate-400 hover:text-white'
-              }`}
-            >
-              <UserPlus className="w-4 h-4 stroke-[2.5]" />
-              <span>Skapa nytt konto</span>
-            </button>
-          </div>
+          {/* Mode Switch Tabs (Sparad kod: visas endast om ALLOW_SELF_REGISTRATION_ON_LOGIN_PAGE är true) */}
+          {ALLOW_SELF_REGISTRATION_ON_LOGIN_PAGE && (
+            <div className="grid grid-cols-2 gap-1.5 p-1 bg-[#1a1a1a] rounded-2xl border border-[#2c2c2c]">
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('LOGIN');
+                  setErrorMsg(null);
+                  setSuccessMsg(null);
+                }}
+                className={`min-h-[42px] rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  mode === 'LOGIN'
+                    ? 'bg-orange-500 text-black shadow-md shadow-orange-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <LogIn className="w-4 h-4 stroke-[2.5]" />
+                <span>Logga in</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMode('REGISTER');
+                  setErrorMsg(null);
+                  setSuccessMsg(null);
+                }}
+                className={`min-h-[42px] rounded-xl text-xs sm:text-sm font-black flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                  mode === 'REGISTER'
+                    ? 'bg-orange-500 text-black shadow-md shadow-orange-500/20'
+                    : 'text-slate-400 hover:text-white'
+                }`}
+              >
+                <UserPlus className="w-4 h-4 stroke-[2.5]" />
+                <span>Skapa nytt konto</span>
+              </button>
+            </div>
+          )}
 
           {/* Toast / Status feedback */}
           {errorMsg && (
@@ -638,8 +647,8 @@ export const LoginView: React.FC<LoginViewProps> = ({ onLoginSuccess, onCancel }
             </form>
           )}
 
-          {/* ================= REGISTER FORM ================= */}
-          {mode === 'REGISTER' && (
+          {/* ================= REGISTER FORM (Sparad kod i reserv om ALLOW_SELF_REGISTRATION_ON_LOGIN_PAGE aktiveras) ================= */}
+          {ALLOW_SELF_REGISTRATION_ON_LOGIN_PAGE && mode === 'REGISTER' && (
             <form onSubmit={handleRegister} className="space-y-3.5">
               <div className="space-y-1">
                 <label className="text-xs font-bold text-slate-300 block">
