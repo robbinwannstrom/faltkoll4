@@ -1,5 +1,5 @@
-// FältHjälp Service Worker - Network First with Safe Fallback
-const CACHE_NAME = 'falthjalp-cache-v2';
+// FältKoll Service Worker - Network First with Safe Fallback
+const CACHE_NAME = 'falthjalp-cache-v3';
 
 self.addEventListener('install', () => {
   self.skipWaiting();
@@ -15,9 +15,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // Never intercept non-GET, API, Vite dev, node_modules, or hot-updates
   const url = event.request.url;
+  // Never intercept cross-origin requests (e.g. Firebase/Google APIs), non-GET, API, Vite dev, or dynamic modules
   if (
+    !url.startsWith(self.location.origin) ||
     event.request.method !== 'GET' ||
     url.includes('/api/') ||
     url.includes('/@') ||

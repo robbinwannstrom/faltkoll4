@@ -24,5 +24,13 @@ service cloud.firestore {
     match /student_groups/{docId} {
       allow read, write: if true;
     }
+
+    match /system/{docId} {
+      allow read, write: if true;
+    }
+
+    match /projects/{projectId} {
+      allow read, write: if true;
+    }
   }
 }

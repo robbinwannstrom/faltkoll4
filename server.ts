@@ -1029,10 +1029,31 @@ async function startServer() {
       res.sendFile(path.resolve(distPath, 'index.html'));
     });
   } else {
+    process.env.DISABLE_HMR = 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false, watch: null },
+      server: { middlewareMode: true, hmr: false, ws: false },
       appType: 'spa',
     });
+
+    // Prevent Vite 8's /@vite/client from attempting WebSocket connections in cloud preview
+    app.get('/@vite/client', async (_req, res, next) => {
+      try {
+        const result = await vite.transformRequest('/@vite/client');
+        if (result && result.code) {
+          const patched = result.code
+            .replace(
+              'transport.connect(createHMRHandler(handleMessage));',
+              '/* WebSocket HMR disabled in cloud preview */'
+            )
+            .replace('setupForwardConsoleHandler(transport, forwardConsole);', '');
+          res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+          res.setHeader('Cache-Control', 'no-cache');
+          return res.status(200).send(patched);
+        }
+      } catch {}
+      next();
+    });
+
     app.use(vite.middlewares);
   }
 

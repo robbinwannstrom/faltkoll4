@@ -66,9 +66,11 @@ export function handleFirestoreError(
     operationType,
     path,
   };
-  console.error('Firestore Error: ', JSON.stringify(errInfo));
   if (rethrow) {
+    console.error('Firestore Error: ', JSON.stringify(errInfo));
     throw new Error(JSON.stringify(errInfo));
+  } else {
+    console.debug('Firestore sync notice: ', errInfo.error);
   }
 }
 
@@ -276,13 +278,19 @@ export function enrichUserGroupMetadata(user: UserAccount): UserAccount {
 export async function saveUserToCloud(user: UserAccount): Promise<boolean> {
   try {
     const enriched = enrichUserGroupMetadata(user);
-    const cleanUser: UserAccount = {
+    const nowStr = new Date().toISOString().replace('T', ' ').substring(0, 16);
+    const rawUser: Record<string, any> = {
       ...enriched,
       email: normalizeIdentifier(enriched.email),
       displayName: String(enriched.displayName || '').trim(),
       password: enriched.password ? String(enriched.password).trim() : '1234',
-      lastLogin: enriched.lastLogin || new Date().toISOString().replace('T', ' ').substring(0, 16),
+      createdAt: enriched.createdAt || nowStr,
+      lastLogin: enriched.lastLogin || nowStr,
     };
+
+    const cleanUser = Object.fromEntries(
+      Object.entries(rawUser).filter(([_, v]) => v !== undefined)
+    ) as UserAccount;
 
     // Primary document by ID
     const primaryRef = doc(db, USERS_COLLECTION, cleanUser.id);
@@ -411,13 +419,17 @@ export async function saveExerciseToCloud(exercise: TeacherExercise): Promise<bo
       .trim()
       .toUpperCase();
 
-    const cleanEx: TeacherExercise = {
+    const rawEx: Record<string, any> = {
       ...exercise,
       id: cleanId,
       code: cleanCode,
       title: String(exercise.title || '').trim(),
       updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
     };
+
+    const cleanEx = Object.fromEntries(
+      Object.entries(rawEx).filter(([_, v]) => v !== undefined)
+    ) as TeacherExercise;
 
     // Save primary document by ID
     const primaryRef = doc(db, EXERCISES_COLLECTION, cleanId);
