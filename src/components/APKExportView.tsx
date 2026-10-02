@@ -34,7 +34,13 @@ export const APKExportView: React.FC<APKExportViewProps> = ({ onBack }) => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [isQrModalOpen, setIsQrModalOpen] = useState(false);
 
-  const currentUrl = getAppUrl();
+  const [currentUrl, setCurrentUrl] = useState<string>(() => getAppUrl());
+
+  useEffect(() => {
+    const handleUrlUpdated = () => setCurrentUrl(getAppUrl());
+    window.addEventListener('falthjalp-qr-url-updated', handleUrlUpdated);
+    return () => window.removeEventListener('falthjalp-qr-url-updated', handleUrlUpdated);
+  }, []);
 
   useEffect(() => {
     const handleBeforeInstall = (e: any) => {

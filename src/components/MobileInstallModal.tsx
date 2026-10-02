@@ -8,27 +8,49 @@ import {
   Smartphone,
   Share,
   PlusSquare,
-  MoreVertical,
   Check,
   Download,
   Info,
 } from 'lucide-react';
+import { UserAccount } from '../types';
+import {
+  getAppUrl,
+  getSavedCustomAppUrl,
+  saveCustomAppUrl,
+  DEFAULT_APP_URL,
+} from '../utils/appUrl';
 
 interface MobileInstallModalProps {
   isOpen: boolean;
   onClose: () => void;
+  currentUser?: UserAccount | null;
 }
-
-import { getAppUrl } from '../utils/appUrl';
 
 export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
   isOpen,
   onClose,
+  currentUser,
 }) => {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [copied, setCopied] = useState(false);
   const [canPromptInstall, setCanPromptInstall] = useState(false);
   const [installSuccess, setInstallSuccess] = useState(false);
+
+  // Determine if logged-in user is Huvudadministratör (ADMIN)
+  const resolvedUser: UserAccount | null = React.useMemo(() => {
+    if (currentUser) return currentUser;
+    try {
+      const raw = localStorage.getItem('falthjalp_current_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }, [currentUser, isOpen]);
+
+  const isMainAdmin = resolvedUser?.role === 'ADMIN';
+
+  const [adminCustomUrl, setAdminCustomUrl] = useState<string>(() => getSavedCustomAppUrl());
+  const [savedNotice, setSavedNotice] = useState<string | null>(null);
 
   // Device detection
   const isIOS =
@@ -49,7 +71,21 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
     isMobileDevice ? 'DENNA_MOBIL' : 'QR_KOD'
   );
 
-  const currentUrl = getAppUrl();
+  const currentUrl = getAppUrl(adminCustomUrl);
+
+  useEffect(() => {
+    if (isOpen) {
+      setAdminCustomUrl(getSavedCustomAppUrl());
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleUrlUpdated = () => {
+      setAdminCustomUrl(getSavedCustomAppUrl());
+    };
+    window.addEventListener('falthjalp-qr-url-updated', handleUrlUpdated);
+    return () => window.removeEventListener('falthjalp-qr-url-updated', handleUrlUpdated);
+  }, []);
 
   // Check beforeinstallprompt
   useEffect(() => {
@@ -67,7 +103,7 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
     return () => window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
   }, []);
 
-  // Generate QR code when open
+  // Generate QR code when open or URL changes
   useEffect(() => {
     if (isOpen) {
       QRCode.toDataURL(currentUrl, {
@@ -89,6 +125,14 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
     navigator.clipboard?.writeText(currentUrl);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
+  };
+
+  const handleSaveUrl = async (nextUrl: string) => {
+    if (!isMainAdmin) return;
+    const saved = await saveCustomAppUrl(nextUrl);
+    setAdminCustomUrl(saved);
+    setSavedNotice(saved ? 'QR-kodens adress är sparad!' : 'Återställd till standardadress!');
+    setTimeout(() => setSavedNotice(null), 3500);
   };
 
   const handleDirectInstallClick = async () => {
@@ -312,6 +356,48 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
                 </span>
               </div>
             </div>
+
+            {/* Huvudadministratör: Redigera URL direkt här */}
+            {isMainAdmin && (
+              <div className="p-3.5 bg-[#181818] border-2 border-purple-500/50 rounded-2xl text-left space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black text-white">
+                    Ändra QR-kodens webbadress (URL)
+                  </span>
+                  <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-700">
+                    Huvudadmin
+                  </span>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder={DEFAULT_APP_URL}
+                    value={adminCustomUrl}
+                    onChange={(e) => setAdminCustomUrl(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleSaveUrl(adminCustomUrl);
+                      }
+                    }}
+                    className="flex-1 bg-[#121212] border border-[#383838] focus:border-orange-500 rounded-xl px-3 py-2 text-xs font-mono text-white placeholder-slate-500 outline-hidden"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handleSaveUrl(adminCustomUrl)}
+                    className="px-3.5 py-2 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs rounded-xl cursor-pointer transition-colors shrink-0"
+                  >
+                    Spara URL
+                  </button>
+                </div>
+                {savedNotice && (
+                  <div className="text-[11px] text-emerald-400 font-bold flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" />
+                    <span>{savedNotice}</span>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

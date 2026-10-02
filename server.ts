@@ -80,6 +80,7 @@ interface CloudStorageState {
   };
   settings?: {
     requireLoginOnStartup?: boolean;
+    customDeployUrl?: string;
   };
 }
 
@@ -689,6 +690,7 @@ app.delete('/api/users/:id', async (req, res) => {
 app.get('/api/system/settings', (_req, res) => {
   return res.json({
     requireLoginOnStartup: cloudState.settings?.requireLoginOnStartup ?? false,
+    customDeployUrl: cloudState.settings?.customDeployUrl ?? '',
   });
 });
 
@@ -762,15 +764,21 @@ app.get('/api/system/storage-stats', (_req, res) => {
 
 // POST /api/system/settings - Update global system settings (Admin only)
 app.post('/api/system/settings', (req, res) => {
-  const { requireLoginOnStartup } = req.body;
+  const { requireLoginOnStartup, customDeployUrl } = req.body;
   if (!cloudState.settings) {
     cloudState.settings = {};
   }
-  cloudState.settings.requireLoginOnStartup = !!requireLoginOnStartup;
+  if (requireLoginOnStartup !== undefined) {
+    cloudState.settings.requireLoginOnStartup = !!requireLoginOnStartup;
+  }
+  if (customDeployUrl !== undefined) {
+    cloudState.settings.customDeployUrl = String(customDeployUrl).trim();
+  }
   saveStorage(cloudState);
   return res.json({
     success: true,
     requireLoginOnStartup: cloudState.settings.requireLoginOnStartup,
+    customDeployUrl: cloudState.settings.customDeployUrl || '',
   });
 });
 

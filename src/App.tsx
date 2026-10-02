@@ -35,6 +35,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { TeacherExerciseCreatorModal } from './components/TeacherExerciseCreatorModal';
 import { convertExerciseToProject } from './services/exerciseService';
 import { inferAccountContextMode } from './utils/contextLabels';
+import { syncCustomAppUrlFromCloud } from './utils/appUrl';
 
 export default function App() {
   const [view, setView] = useState<ViewState>('DASHBOARD');
@@ -166,6 +167,7 @@ export default function App() {
 
   useEffect(() => {
     loadProjectsFromDB();
+    syncCustomAppUrlFromCloud();
   }, []);
 
   // Sync color palette class and custom CSS variables to document root
@@ -675,6 +677,7 @@ export default function App() {
       <MobileInstallModal
         isOpen={isMobileInstallOpen}
         onClose={() => setIsMobileInstallOpen(false)}
+        currentUser={currentUser}
       />
 
       {/* Lärarpanel: Övningskreatör Modal */}

@@ -33,7 +33,12 @@ import {
   Lock,
 } from 'lucide-react';
 import QRCode from 'qrcode';
-import { getAppUrl } from '../utils/appUrl';
+import {
+  getAppUrl,
+  getSavedCustomAppUrl,
+  saveCustomAppUrl,
+  DEFAULT_APP_URL,
+} from '../utils/appUrl';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -53,12 +58,22 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   currentUser,
 }) => {
   const isStudentAccount = currentUser?.role === 'STUDENT';
+  const isMainAdmin = currentUser?.role === 'ADMIN';
   const [activeTab, setActiveTab] = useState<'QR_MOBILE' | 'LAYOUT' | 'PALETTE' | 'PREINSPECTION' | 'PHOTO' | 'PROFILE'>('LAYOUT');
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string>('');
   const [copied, setCopied] = useState<boolean>(false);
-  const [customUrl, setCustomUrl] = useState<string>(userSettings.customDeployUrl || '');
+  const [customUrl, setCustomUrl] = useState<string>(
+    () => getSavedCustomAppUrl() || userSettings.customDeployUrl || ''
+  );
+  const [urlSavedFeedback, setUrlSavedFeedback] = useState<string | null>(null);
 
   const activeUrl = getAppUrl(customUrl);
+
+  useEffect(() => {
+    if (isOpen) {
+      setCustomUrl(getSavedCustomAppUrl() || userSettings.customDeployUrl || '');
+    }
+  }, [isOpen, userSettings.customDeployUrl]);
 
   useEffect(() => {
     if (isOpen) {
@@ -74,6 +89,19 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         .catch((err) => console.error('Kunde inte generera QR-kod:', err));
     }
   }, [isOpen, activeUrl]);
+
+  const handleSaveAdminQrUrl = async (targetUrl: string) => {
+    if (!isMainAdmin) return;
+    const normalized = await saveCustomAppUrl(targetUrl);
+    setCustomUrl(normalized);
+    handleApplyChanges({ customDeployUrl: normalized });
+    setUrlSavedFeedback(
+      normalized
+        ? `Sparad! QR-koden pekar nu på: ${normalized}`
+        : `Återställd till standardadress (${DEFAULT_APP_URL})`
+    );
+    setTimeout(() => setUrlSavedFeedback(null), 4000);
+  };
 
   // Form states initialized from userSettings
   const [contextMode, setContextMode] = useState<AppContextMode>(
@@ -376,40 +404,77 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
               {/* URL & Quick copy */}
               <div className="w-full max-w-md space-y-3">
-                {/* Custom URL Input Field */}
-                <div className="p-3 bg-[#181818] border border-[#2e2e2e] rounded-xl text-left space-y-2">
-                  <label className="text-xs font-bold text-slate-200 block">
-                    Anpassad webbadress för QR-kod:
-                  </label>
-                  <div className="flex gap-2">
-                    <input
-                      type="url"
-                      placeholder="https://robbinwannstrom.github.io/faltkoll2/"
-                      value={customUrl}
-                      onChange={(e) => setCustomUrl(e.target.value)}
-                      className="flex-1 bg-[#121212] border border-[#333333] focus:border-orange-500 rounded-lg px-3 py-2 text-xs font-mono text-white placeholder-slate-500 outline-hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleApplyChanges({ customDeployUrl: customUrl.trim() })}
-                      className="px-3 py-2 bg-orange-500 hover:bg-orange-400 text-black font-bold text-xs rounded-lg cursor-pointer transition-colors shrink-0"
-                    >
-                      Spara
-                    </button>
+                {/* Custom URL Input Field - ENDAST HUVUDADMINISTRATÖR */}
+                {isMainAdmin && (
+                  <div className="p-3.5 bg-[#181818] border-2 border-purple-500/50 rounded-2xl text-left space-y-2.5 shadow-md">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-xs font-black text-white block">
+                        Huvudadministratör: Ändra QR-kodens URL-adress
+                      </label>
+                      <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-700">
+                        Endast Huvudadmin
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-relaxed">
+                      Skriv eller klistra in valfri webbadress (URL) nedan. QR-koden uppdateras direkt efter adressen du skriver in.
+                    </p>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        placeholder={DEFAULT_APP_URL}
+                        value={customUrl}
+                        onChange={(e) => setCustomUrl(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleSaveAdminQrUrl(customUrl);
+                          }
+                        }}
+                        className="flex-1 bg-[#121212] border border-[#383838] focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs font-mono text-white placeholder-slate-500 outline-hidden"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => handleSaveAdminQrUrl(customUrl)}
+                        className="px-4 py-2.5 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs rounded-xl cursor-pointer transition-colors shrink-0"
+                      >
+                        Spara URL
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap items-center justify-between gap-2 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined') {
+                            const here = window.location.origin + window.location.pathname;
+                            setCustomUrl(here);
+                            handleSaveAdminQrUrl(here);
+                          }
+                        }}
+                        className="text-[11px] text-orange-400 hover:text-orange-300 font-bold underline cursor-pointer"
+                      >
+                        Använd nuvarande sidas adress
+                      </button>
+                      {customUrl.trim() && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomUrl('');
+                            handleSaveAdminQrUrl('');
+                          }}
+                          className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
+                        >
+                          Återställ till standardadress
+                        </button>
+                      )}
+                    </div>
+                    {urlSavedFeedback && (
+                      <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-[11px] font-bold flex items-center gap-1.5">
+                        <Check className="w-3.5 h-3.5 shrink-0" />
+                        <span className="truncate">{urlSavedFeedback}</span>
+                      </div>
+                    )}
                   </div>
-                  {customUrl.trim() && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCustomUrl('');
-                        handleApplyChanges({ customDeployUrl: '' });
-                      }}
-                      className="text-[11px] text-slate-400 hover:text-white underline cursor-pointer"
-                    >
-                      Återställ till standardadress
-                    </button>
-                  )}
-                </div>
+                )}
 
                 {/* Display Current URL */}
                 <div className="flex items-center gap-2 bg-[#181818] border border-[#2e2e2e] p-2 rounded-xl text-left">
@@ -453,6 +518,82 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           {/* TAB 1: LAYOUT & VERKSAMHETSLÄGE */}
           {activeTab === 'LAYOUT' && (
             <div className="space-y-6">
+              {/* HUVUDADMINISTRATÖR: SNABBRAD FÖR ATT ÄNDRA QR-KODENS URL DIREKT I INSTÄLLNINGAR */}
+              {isMainAdmin && (
+                <div className="p-4 rounded-2xl bg-[#181818] border-2 border-purple-500/50 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <QrCode className="w-4 h-4 text-orange-400 shrink-0" />
+                      <h3 className="text-sm font-black text-white">
+                        QR-kodens webbadress (URL)
+                      </h3>
+                    </div>
+                    <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-purple-950 text-purple-300 border border-purple-700 shrink-0">
+                      Huvudadministratör
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Skriv in den adress (URL) som QR-koden ska leda till när elever eller personal skannar den:
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      placeholder={DEFAULT_APP_URL}
+                      value={customUrl}
+                      onChange={(e) => setCustomUrl(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleSaveAdminQrUrl(customUrl);
+                        }
+                      }}
+                      className="flex-1 bg-[#121212] border border-[#383838] focus:border-orange-500 rounded-xl px-3 py-2.5 text-xs font-mono text-white placeholder-slate-500 outline-hidden"
+                    />
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleSaveAdminQrUrl(customUrl)}
+                        className="px-4 py-2.5 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs rounded-xl cursor-pointer transition-colors"
+                      >
+                        Spara URL
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('QR_MOBILE')}
+                        className="px-3 py-2.5 bg-[#242424] hover:bg-[#303030] text-slate-200 border border-[#383838] font-bold text-xs rounded-xl cursor-pointer transition-colors flex items-center gap-1.5"
+                        title="Förhandsgranska QR-kod"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-orange-400" />
+                        <span>Visa QR</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-slate-400">
+                    <span>
+                      Aktiv QR-länk: <strong className="text-orange-400 font-mono">{activeUrl}</strong>
+                    </span>
+                    {customUrl.trim() && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomUrl('');
+                          handleSaveAdminQrUrl('');
+                        }}
+                        className="text-slate-400 hover:text-white underline cursor-pointer"
+                      >
+                        Återställ standard
+                      </button>
+                    )}
+                  </div>
+                  {urlSavedFeedback && (
+                    <div className="p-2 rounded-lg bg-emerald-950/80 border border-emerald-500/60 text-emerald-300 text-xs font-bold flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 shrink-0" />
+                      <span>{urlSavedFeedback}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* VERKSAMHETSLÄGE: LÅST TILL KONTOTS TYP NÄR INLOGGAD */}
               <div className="space-y-3 pb-5 border-b border-[#262626]">
                 <div className="flex items-center justify-between gap-2">
