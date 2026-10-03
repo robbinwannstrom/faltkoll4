@@ -1,11 +1,12 @@
 import React from 'react';
-import { Menu, ArrowLeft, FileText, HardHat, Bell, LogOut } from 'lucide-react';
+import { Menu, ArrowLeft, FileText, HardHat, Bell, LogOut, Download, Users } from 'lucide-react';
 import { ViewState, UserAccount, UserSettings } from '../types';
 import {
   getContextVocabulary,
   getContextualRoleLabel,
   resolveAppContextMode,
 } from '../utils/contextLabels';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface HeaderProps {
   currentView: ViewState;
@@ -32,6 +33,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenMenu,
   onOpenReport,
   onOpenNotices,
+  onOpenQRCodeModal,
   onLogout,
   unreadNoticesCount = 0,
   currentUser,
@@ -39,6 +41,18 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const contextMode = resolveAppContextMode(userSettings, currentUser);
   const vocab = getContextVocabulary(contextMode);
+  const { isInstallable, isInstalled, install } = usePWAInstall();
+
+  const handleInstallClick = async () => {
+    if (isInstallable) {
+      const accepted = await install();
+      if (!accepted && onOpenQRCodeModal) {
+        onOpenQRCodeModal();
+      }
+    } else if (onOpenQRCodeModal) {
+      onOpenQRCodeModal();
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 bg-[#121212] border-b border-[#242424] font-sans">
@@ -86,6 +100,36 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right: Actions + User */}
         <div className="flex items-center gap-2 shrink-0">
+          {(currentUser?.role === 'TEACHER' ||
+            currentUser?.role === 'SCHOOL_ADMIN' ||
+            currentUser?.role === 'ADMIN') && (
+            <button
+              type="button"
+              onClick={() => onNavigate(currentView === 'FIELD_MONITOR' ? 'DASHBOARD' : 'FIELD_MONITOR')}
+              className={`min-h-[38px] px-3 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors border ${
+                currentView === 'FIELD_MONITOR'
+                  ? 'bg-orange-500 text-black border-orange-400 font-black'
+                  : 'bg-[#1a1a1a] hover:bg-[#252525] text-orange-400 hover:text-orange-300 border-orange-500/40'
+              }`}
+              title="Öppna Fältöversikt & Elevinspektion"
+            >
+              <Users className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden sm:inline">Elever i fält</span>
+            </button>
+          )}
+
+          {!isInstalled && onOpenQRCodeModal && (
+            <button
+              type="button"
+              onClick={handleInstallClick}
+              className="min-h-[38px] px-3 bg-[#1a1a1a] hover:bg-[#252525] text-orange-400 hover:text-orange-300 border border-orange-500/40 font-bold text-xs rounded-xl flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="Installera FältKoll som app på enheten"
+            >
+              <Download className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span className="hidden md:inline">Installera app</span>
+            </button>
+          )}
+
           {currentView === 'CHECKLIST' && onOpenReport && (
             <button
               type="button"

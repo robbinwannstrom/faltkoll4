@@ -41,6 +41,7 @@ interface DashboardViewProps {
   onOpenCollaboration?: () => void;
   onOpenTrashBin?: () => void;
   onOpenAccounts?: () => void;
+  onOpenFieldMonitor?: () => void;
   onOpenAPKExport?: () => void;
   onOpenQRCodeModal?: () => void;
   onOpenTutorial?: (projectId?: string) => void;
@@ -58,6 +59,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenReportDirect,
   onOpenTrashBin,
   onOpenAccounts,
+  onOpenFieldMonitor,
   onOpenTutorial,
   onOpenExerciseCreator,
   currentUser,
@@ -380,6 +382,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 >
                   <option value="ALL">Alla typer</option>
                   <option value="HUSGRUND">Husgrund</option>
+                  <option value="ALTAN_TRADACK">Altan & Trädäck</option>
                   <option value="PLATTSATTNING">Plattsättning</option>
                   <option value="ENSKILT_AVLOPP">Enskilt Avlopp</option>
                 </select>
@@ -416,6 +419,37 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Fältöversikt & Elevinspektion för lärare & administratörer */}
+      {currentUser?.role !== 'STUDENT' && onOpenFieldMonitor && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-[#1c1c1c] via-[#1a1714] to-[#1c1c1c] border border-orange-500/40 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xl">
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0">
+              <Users className="w-6 h-6 stroke-[2.5]" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-black text-white text-base sm:text-lg">
+                  Fältöversikt & Elevinspektion (Live)
+                </h3>
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+              </div>
+              <p className="text-xs text-slate-300">
+                Se vad eleverna gör på fältet, öppna filtermenyn med alla klasser och inspektera hela arbetet med foton & kontroller.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={onOpenFieldMonitor}
+            className="min-h-[42px] px-5 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer transition-all shadow-md shadow-orange-500/20 shrink-0"
+          >
+            <span>Öppna Elevinspektion</span>
+            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
+          </button>
         </div>
       )}
 

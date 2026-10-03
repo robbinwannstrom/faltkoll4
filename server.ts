@@ -248,6 +248,344 @@ function loadStorage(): CloudStorageState {
       if (!adminSkola.password) adminSkola.password = 'admin123';
     }
 
+    // Ensure demo students have class and group assigned
+    state.users.forEach((u) => {
+      if (u.role === 'STUDENT') {
+        if (!u.schoolClass) {
+          if (u.email.includes('erik') || u.displayName.toLowerCase().includes('erik')) {
+            u.schoolClass = 'BA24 (Bygg Åk 2)';
+            u.studentGroup = 'Byggprogrammet (BA)';
+          } else if (u.email.includes('johan') || u.displayName.toLowerCase().includes('johan')) {
+            u.schoolClass = 'BA24 (Bygg Åk 2)';
+            u.studentGroup = 'Byggprogrammet (BA)';
+          } else if (u.email.includes('ny') || u.displayName.toLowerCase().includes('ny')) {
+            u.schoolClass = 'ANL23 (Anläggare)';
+            u.studentGroup = 'Anläggare (Mark & Anläggning)';
+          } else {
+            u.schoolClass = 'BA25 (Bygg Åk 1)';
+            u.studentGroup = 'Byggprogrammet (BA)';
+          }
+        }
+      }
+    });
+
+    // Helper SVG for authentic field documentation photos with timestamp and watermark
+    const makeFieldSvg = (title: string, sub: string, time: string, color: string) => {
+      const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="480" viewBox="0 0 640 480">
+        <defs>
+          <linearGradient id="g_${color.replace('#','')}" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stop-color="#182234"/>
+            <stop offset="100%" stop-color="#0b1120"/>
+          </linearGradient>
+        </defs>
+        <rect width="640" height="480" fill="url(#g_${color.replace('#','')})"/>
+        <rect x="24" y="24" width="592" height="432" rx="14" fill="none" stroke="${color}" stroke-width="2.5" stroke-dasharray="6 4" opacity="0.6"/>
+        <circle cx="320" cy="180" r="50" fill="${color}" opacity="0.12"/>
+        <text x="320" y="175" font-family="system-ui, -apple-system, sans-serif" font-size="24" font-weight="900" fill="${color}" text-anchor="middle">📷 FÄLTDOKUMENTATION</text>
+        <text x="320" y="210" font-family="system-ui, -apple-system, sans-serif" font-size="18" font-weight="800" fill="#ffffff" text-anchor="middle">${title}</text>
+        <text x="320" y="245" font-family="system-ui, -apple-system, sans-serif" font-size="13" font-weight="500" fill="#94a3b8" text-anchor="middle">${sub}</text>
+        <rect x="35" y="395" width="570" height="50" rx="10" fill="#000000" opacity="0.85"/>
+        <text x="55" y="426" font-family="ui-monospace, monospace" font-size="13" font-weight="900" fill="#f97316">FÄLTKOLL KONTROLLBEVIS</text>
+        <text x="585" y="426" font-family="ui-monospace, monospace" font-size="12" fill="#ffffff" text-anchor="end">${time}</text>
+      </svg>`;
+      return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+    };
+
+    // Ensure sample student projects in field exist
+    if (!state.projects || Object.keys(state.projects).length <= 1) {
+      state.projects = state.projects || {};
+
+      // 1. Erik Svensson (BA24) - Platta på mark övning
+      state.projects['proj_erik_grund_1'] = {
+        id: 'proj_erik_grund_1',
+        name: 'Övning: Platta på mark - Schakt & Makadam',
+        projectType: 'HUSGRUND',
+        propertyDesignation: 'Bygghall 2, Skoltomten 1:1',
+        clientName: 'Yrkeslärare Mark & Betong',
+        contractorName: 'Erik Svensson',
+        studentId: 'usr_1790725123408_pqio',
+        studentName: 'Erik Svensson',
+        studentEmail: 'erik.bygg@skola.se',
+        schoolClass: 'BA24 (Bygg Åk 2)',
+        studentGroup: 'Byggprogrammet (BA)',
+        projectNumber: 'GRUND-1',
+        exerciseCode: 'GRUND-1',
+        isTeacherExercise: true,
+        createdAt: '2026-10-02 08:30',
+        updatedAt: '2026-10-03 10:45',
+        lastSyncedAt: '2026-10-03 10:45',
+        syncEnabled: true,
+        notes: 'Arbetar med schaktning och kapillärbrytande makadambädd. Alla mått kontrolleras med rotationslaser.',
+        fieldMeasurements: { sideA: 10.0, sideB: 8.0, diagonal: 12.81, fallCmPerM: 1.0 },
+        preInspectionCompleted: true,
+        moments: {
+          '1.1': {
+            momentId: '1.1',
+            status: 'GREEN',
+            comment: 'Utsättning med profilställningar och linor. Kryssmått 12.81 m stämmer exakt på millimetern.',
+            signature: 'Erik Svensson',
+            completedAt: '2026-10-03 09:10',
+            weather: 'SOL',
+            measuredValue: '12.81 m (±1 mm)',
+            structuredChecks: ['Profilställningar stabilt förankrade', 'Snören i våg och 90 graders vinkel', 'Diagonalmått kontrollerat'],
+            photos: [{
+              id: 'ph_erik_1',
+              capturedAt: '2026-10-03 09:12',
+              category: 'Kontrollbevis',
+              caption: 'Profilsnören uppspända och kryssmått verifierat',
+              dataUrl: makeFieldSvg('Moment 1.1: Utsättning & Kryssmått', 'Kryssmått 12.81 m verifierat med stålbandmått', '2026-10-03 09:12', '#38bdf8'),
+            }],
+          },
+          '1.2': {
+            momentId: '1.2',
+            status: 'GREEN',
+            comment: 'Schaktat bort matjord och lera ner till fast moränbotten. Djup -420 mm.',
+            signature: 'Erik Svensson',
+            completedAt: '2026-10-03 09:50',
+            weather: 'SOL',
+            measuredValue: '-420 mm',
+            photos: [{
+              id: 'ph_erik_2',
+              capturedAt: '2026-10-03 09:52',
+              category: 'Schakt',
+              caption: 'Schaktbotten avjämnad till fast morän',
+              dataUrl: makeFieldSvg('Moment 1.2: Schaktning till fast botten', 'Laseravvägning botten: -420 mm (Tolerans ±10 mm OK)', '2026-10-03 09:52', '#f97316'),
+            }],
+          },
+          '1.3': {
+            momentId: '1.3',
+            status: 'GREEN',
+            comment: 'Fiberduk Geotextil Klass N2 utlagd över hela botten och uppdragen mot schaktkant med 50 cm överlapp.',
+            signature: 'Erik Svensson',
+            completedAt: '2026-10-03 10:15',
+            weather: 'SOL',
+            photos: [{
+              id: 'ph_erik_3',
+              capturedAt: '2026-10-03 10:17',
+              category: 'Schakt',
+              caption: 'Fiberduk med 50 cm överlapp enligt AMA Anläggning',
+              dataUrl: makeFieldSvg('Moment 1.3: Geotextil / Fiberduk', 'Duk N2 utlagd med 50 cm överlapp i skarvar', '2026-10-03 10:17', '#10b981'),
+            }],
+          },
+          '1.4': {
+            momentId: '1.4',
+            status: 'YELLOW',
+            comment: 'Makadambädd 8/16 mm utlagd i 20 cm lager och paddad. Laserhöjd mätt till -220 mm över 8 kontrollpunkter. STOPPUNKT: Väntar på lärarens godkännande på plats innan kantelement ställs upp!',
+            signature: 'Erik Svensson',
+            completedAt: '2026-10-03 10:40',
+            weather: 'SOL',
+            measuredValue: '-220 mm (±3 mm)',
+            photos: [{
+              id: 'ph_erik_4',
+              capturedAt: '2026-10-03 10:42',
+              category: 'Kontrollbevis',
+              caption: 'Laseravvägning makadambädd 8 punkter',
+              dataUrl: makeFieldSvg('Moment 1.4: Makadambädd 8/16 mm', 'STOPPUNKT • Laseravvägning: -220 mm (Tolerans ±3 mm)', '2026-10-03 10:42', '#eab308'),
+            }],
+          },
+          '1.5': { momentId: '1.5', status: 'RED', comment: '', signature: '', photos: [] },
+          '1.6': { momentId: '1.6', status: 'RED', comment: '', signature: '', photos: [] },
+        },
+      };
+
+      // 2. Johan Elev (BA24) - Husgrund Villa Lindholmen
+      state.projects['proj_johan_husgrund'] = {
+        id: 'proj_johan_husgrund',
+        name: 'Husgrund Villa Lindholmen',
+        projectType: 'HUSGRUND',
+        propertyDesignation: 'Lindholmen 4:12',
+        clientName: 'Lindholmen Fastigheter AB',
+        contractorName: 'Johan Elev',
+        studentId: 'usr_1790594250865_0wxq',
+        studentName: 'Johan Elev',
+        studentEmail: 'johan.elev@skola.se',
+        schoolClass: 'BA24 (Bygg Åk 2)',
+        studentGroup: 'Byggprogrammet (BA)',
+        createdAt: '2026-10-01 09:00',
+        updatedAt: '2026-10-03 09:30',
+        lastSyncedAt: '2026-10-03 09:30',
+        syncEnabled: true,
+        notes: 'Praktikprojekt fältkontroll. Rördragning och dränering.',
+        preInspectionCompleted: true,
+        moments: {
+          '1.1': {
+            momentId: '1.1',
+            status: 'GREEN',
+            comment: 'Utsättning kontrollerad med GPS och laser. Mått stämmer mot ritning A40-1.',
+            signature: 'Johan Elev',
+            completedAt: '2026-10-02 11:00',
+            weather: 'MOLN',
+            photos: [{
+              id: 'ph_johan_1',
+              capturedAt: '2026-10-02 11:05',
+              category: 'Kontrollbevis',
+              caption: 'GPS-inmätning av hörnprofiler',
+              dataUrl: makeFieldSvg('Moment 1.1: Inmätning hörn', 'Hörnkoordinater verifierade mot relationsritning', '2026-10-02 11:05', '#38bdf8'),
+            }],
+          },
+          '1.2': {
+            momentId: '1.2',
+            status: 'GREEN',
+            comment: 'Schakt utförd. Schaktbotten stabil utan organiskt material.',
+            signature: 'Johan Elev',
+            completedAt: '2026-10-02 14:30',
+            weather: 'MOLN',
+            photos: [{
+              id: 'ph_johan_2',
+              capturedAt: '2026-10-02 14:35',
+              category: 'Schakt',
+              caption: 'Schaktbotten avsynad',
+              dataUrl: makeFieldSvg('Moment 1.2: Schaktbotten', 'Avsynad fast botten utan tjäle eller vattenfickor', '2026-10-02 14:35', '#f97316'),
+            }],
+          },
+          '1.5': {
+            momentId: '1.5',
+            status: 'GREEN',
+            comment: 'Spillvattenrör 110 mm förlagda med fall 20 promille (1:50). Fall mätt med digitalt vattenpass.',
+            signature: 'Johan Elev',
+            completedAt: '2026-10-03 09:20',
+            weather: 'SOL',
+            measuredValue: '2.0 cm/m',
+            photos: [{
+              id: 'ph_johan_3',
+              capturedAt: '2026-10-03 09:25',
+              category: 'VA',
+              caption: 'VA-rör med 20 promille fall kontrollerat',
+              dataUrl: makeFieldSvg('Moment 1.5: VA & Spillvatten 110 mm', 'Fallkontroll: 20 promille (1:50) verifierat', '2026-10-03 09:25', '#06b6d4'),
+            }],
+          },
+          '1.6': { momentId: '1.6', status: 'RED', comment: '', signature: '', photos: [] },
+        },
+      };
+
+      // 3. Ny Elev (ANL23) - Plattsättning
+      state.projects['proj_ny_sten'] = {
+        id: 'proj_ny_sten',
+        name: 'Marksten & Plattsättning Garageuppfart',
+        projectType: 'PLATTSATTNING',
+        propertyDesignation: 'Övningsbås 4, Anläggarytan',
+        clientName: 'Yrkeslärare Mark & Betong',
+        contractorName: 'Ny Elev',
+        studentId: 'usr_1790594214948_pig3',
+        studentName: 'Ny Elev',
+        studentEmail: 'ny_elev@skola.se',
+        schoolClass: 'ANL23 (Anläggare)',
+        studentGroup: 'Anläggare (Mark & Anläggning)',
+        projectNumber: 'PLATTA-2',
+        exerciseCode: 'PLATTA-2',
+        isTeacherExercise: true,
+        createdAt: '2026-10-02 08:00',
+        updatedAt: '2026-10-03 11:15',
+        lastSyncedAt: '2026-10-03 11:15',
+        syncEnabled: true,
+        notes: 'Övning i fall och sättsand för marksten.',
+        fieldMeasurements: { sideA: 6.0, sideB: 4.0, diagonal: 7.21, fallCmPerM: 2.0 },
+        preInspectionCompleted: true,
+        moments: {
+          '1.1': {
+            momentId: '1.1',
+            status: 'GREEN',
+            comment: 'Bärlager 0/32 mm utlagt i 15 cm tjocklek och paddat med 400 kg markvibrator 6 överfarter.',
+            signature: 'Ny Elev',
+            completedAt: '2026-10-02 13:00',
+            weather: 'SOL',
+            photos: [{
+              id: 'ph_ny_1',
+              capturedAt: '2026-10-02 13:05',
+              category: 'Schakt',
+              caption: 'Bärlager packat och kontrollerat med rulltest',
+              dataUrl: makeFieldSvg('Moment 1.1: Bärlager 0/32', 'Paddat med 400 kg markvibrator (6 överfarter)', '2026-10-02 13:05', '#10b981'),
+            }],
+          },
+          '1.2': {
+            momentId: '1.2',
+            status: 'YELLOW',
+            comment: 'Sättsand 0/4 mm utlagd 30 mm och avdragen med rätskiva. Fall 2.0 cm per meter bort från husgrunden. STOPPUNKT: Väntar på att läraren inspekterar fallet innan stenläggning påbörjas!',
+            signature: 'Ny Elev',
+            completedAt: '2026-10-03 11:10',
+            weather: 'SOL',
+            measuredValue: 'Fall 2 cm/m',
+            photos: [{
+              id: 'ph_ny_2',
+              capturedAt: '2026-10-03 11:12',
+              category: 'Kontrollbevis',
+              caption: 'Sättsand avdragen, fall mot rännsten kontrollerat',
+              dataUrl: makeFieldSvg('Moment 1.2: Sättsand & Fall 2 cm/m', 'STOPPUNKT • Avdragen med rätskiva, väntar godkännande', '2026-10-03 11:12', '#eab308'),
+            }],
+          },
+          '1.3': { momentId: '1.3', status: 'RED', comment: '', signature: '', photos: [] },
+        },
+      };
+
+      // 4. Elev / Lärling (BA25) - Trädäck
+      state.projects['proj_elev1_altan'] = {
+        id: 'proj_elev1_altan',
+        name: 'Trädäck & Altan 35 kvm',
+        projectType: 'ALTAN_TRADACK',
+        propertyDesignation: 'Skolans övningsgård',
+        clientName: 'Yrkeslärare Trä',
+        contractorName: 'Elev / Lärling',
+        studentId: 'usr_elev_1',
+        studentName: 'Elev / Lärling',
+        studentEmail: 'elev@skola.se',
+        schoolClass: 'BA25 (Bygg Åk 1)',
+        studentGroup: 'Byggprogrammet (BA)',
+        createdAt: '2026-10-01 10:00',
+        updatedAt: '2026-10-02 15:45',
+        lastSyncedAt: '2026-10-02 15:45',
+        syncEnabled: true,
+        notes: 'Altanbygge med plintar och bärlina 45x170 mm.',
+        preInspectionCompleted: true,
+        moments: {
+          '1.1': {
+            momentId: '1.1',
+            status: 'GREEN',
+            comment: 'Betongplintar med justerbara stolpskor gjutna på frostfritt djup 80 cm.',
+            signature: 'Elev / Lärling',
+            completedAt: '2026-10-01 14:00',
+            weather: 'SOL',
+            photos: [{
+              id: 'ph_elev1_1',
+              capturedAt: '2026-10-01 14:10',
+              category: 'Grund',
+              caption: 'Plintar i lod och våg',
+              dataUrl: makeFieldSvg('Moment 1.1: Plintar & Grundläggning', 'Gjutna plintar på frostfritt djup med stolpskor', '2026-10-01 14:10', '#3b82f6'),
+            }],
+          },
+          '1.2': {
+            momentId: '1.2',
+            status: 'GREEN',
+            comment: 'Bärlina 45x170 mm monterad i våg med laser. Förankrad med fransk träskruv.',
+            signature: 'Elev / Lärling',
+            completedAt: '2026-10-02 11:30',
+            weather: 'SOL',
+            photos: [{
+              id: 'ph_elev1_2',
+              capturedAt: '2026-10-02 11:35',
+              category: 'Grund',
+              caption: 'Bärlina kontrollerad med vattenpass',
+              dataUrl: makeFieldSvg('Moment 1.2: Bärlina 45x170', 'Monterad i våg och fäst mot plintar', '2026-10-02 11:35', '#10b981'),
+            }],
+          },
+          '1.3': {
+            momentId: '1.3',
+            status: 'GREEN',
+            comment: 'Golvbjälkar c/c 600 mm monterade med balkskor och ankarspik.',
+            signature: 'Elev / Lärling',
+            completedAt: '2026-10-02 15:30',
+            weather: 'SOL',
+            photos: [{
+              id: 'ph_elev1_3',
+              capturedAt: '2026-10-02 15:40',
+              category: 'Kontrollbevis',
+              caption: 'Bjälklag c/c 60 cm monterat',
+              dataUrl: makeFieldSvg('Moment 1.3: Bjälklag c/c 600 mm', 'Alla fack mätta till 600 mm c/c', '2026-10-02 15:40', '#38bdf8'),
+            }],
+          },
+        },
+      };
+    }
+
     return state;
   } catch (err) {
     console.warn('Could not read cloud storage file, using default', err);
@@ -948,6 +1286,277 @@ app.post('/api/sync/push', (req, res) => {
   saveStorage(cloudState);
 
   return res.json({ success: true, lastSyncedAt: now, project });
+});
+
+// ==========================================
+// TEACHER FIELD INSPECTION & STUDENT WORK APIS
+// ==========================================
+
+// GET /api/field/student-work - Get all student works with filtering, statistics and class breakdown
+app.get('/api/field/student-work', (req, res) => {
+  const { schoolClass, studentGroup, status, projectType, search } = req.query;
+
+  // Filter so only student field projects are included (not teacher exercises or private teacher projects)
+  let allProjects = Object.values(cloudState.projects || {}).filter((p: any) => {
+    const isStudent = p.creatorRole === 'STUDENT' || !!p.studentId || !!p.studentEmail;
+    return isStudent;
+  });
+
+  // Compute available classes dynamically from registered users and projects
+  const classCounts: Record<string, { studentCount: number; activeProjectsCount: number }> = {};
+  
+  // From users
+  (cloudState.users || []).forEach((u) => {
+    if (u.role === 'STUDENT' && u.schoolClass) {
+      if (!classCounts[u.schoolClass]) {
+        classCounts[u.schoolClass] = { studentCount: 0, activeProjectsCount: 0 };
+      }
+      classCounts[u.schoolClass].studentCount++;
+    }
+  });
+
+  // From projects
+  allProjects.forEach((p: any) => {
+    const cls = p.schoolClass || 'Ospecificerad klass';
+    if (!classCounts[cls]) {
+      classCounts[cls] = { studentCount: 0, activeProjectsCount: 0 };
+    }
+    classCounts[cls].activeProjectsCount++;
+  });
+
+  const classes = Object.entries(classCounts).map(([name, data]) => ({
+    name,
+    studentCount: data.studentCount,
+    activeProjectsCount: data.activeProjectsCount,
+  }));
+
+  // Filtering
+  let filtered = allProjects.filter((p: any) => {
+    // School class filter
+    if (schoolClass && schoolClass !== 'ALL') {
+      const targetClass = String(schoolClass).toLowerCase().trim();
+      const pClass = String(p.schoolClass || '').toLowerCase().trim();
+      if (!pClass.includes(targetClass) && targetClass !== pClass) return false;
+    }
+
+    // Student group filter
+    if (studentGroup && studentGroup !== 'ALL') {
+      const targetGroup = String(studentGroup).toLowerCase().trim();
+      const pGroup = String(p.studentGroup || '').toLowerCase().trim();
+      if (!pGroup.includes(targetGroup) && targetGroup !== pGroup) return false;
+    }
+
+    // Project type filter
+    if (projectType && projectType !== 'ALL') {
+      if (p.projectType !== projectType) return false;
+    }
+
+    // Search query (Student name, email, class, project name)
+    if (search && String(search).trim()) {
+      const q = String(search).toLowerCase().trim();
+      const matchName = String(p.name || '').toLowerCase().includes(q);
+      const matchStudent = String(p.studentName || p.contractorName || '').toLowerCase().includes(q);
+      const matchEmail = String(p.studentEmail || '').toLowerCase().includes(q);
+      const matchClass = String(p.schoolClass || '').toLowerCase().includes(q);
+      const matchProp = String(p.propertyDesignation || '').toLowerCase().includes(q);
+      const matchCode = String(p.exerciseCode || p.groupCode || '').toLowerCase().includes(q);
+      if (!matchName && !matchStudent && !matchEmail && !matchClass && !matchProp && !matchCode) {
+        return false;
+      }
+    }
+
+    // Status filter
+    if (status && status !== 'ALL') {
+      const momentsList = Object.values(p.moments || {}) as any[];
+      const totalMoments = momentsList.length;
+      const completedMoments = momentsList.filter((m) => m.status === 'GREEN').length;
+      const hasYellow = momentsList.some((m) => m.status === 'YELLOW');
+      const isComplete = totalMoments > 0 && completedMoments === totalMoments;
+
+      // Count photos
+      let photosCount = (p.preInspectionPhotos || []).length;
+      momentsList.forEach((m) => {
+        if (m.photos) photosCount += m.photos.length;
+        else if (m.photoBase64) photosCount += 1;
+      });
+
+      if (status === 'ACTIVE' && isComplete) return false;
+      if (status === 'COMPLETED' && !isComplete) return false;
+      if (status === 'PENDING_APPROVAL' && !hasYellow) return false;
+      if (status === 'HAS_PHOTOS' && photosCount === 0) return false;
+      if (status === 'NEEDS_ACTION' && (!p.teacherFeedback || p.teacherFeedback.grade !== 'KOMPLETTERING_KRÄVS')) {
+        return false;
+      }
+    }
+
+    return true;
+  });
+
+  // Sort by latest updated
+  filtered.sort((a: any, b: any) => {
+    const timeA = new Date(a.updatedAt || a.createdAt || 0).getTime();
+    const timeB = new Date(b.updatedAt || b.createdAt || 0).getTime();
+    return timeB - timeA;
+  });
+
+  // Calculate live statistics
+  const uniqueStudents = new Set(allProjects.map((p: any) => p.studentId || p.studentName || p.contractorName)).size;
+  let totalPhotos = 0;
+  let pendingTeacherReview = 0;
+  let totalPercentSum = 0;
+
+  allProjects.forEach((p: any) => {
+    const momentsList = Object.values(p.moments || {}) as any[];
+    const totalMoments = momentsList.length;
+    const completedMoments = momentsList.filter((m) => m.status === 'GREEN').length;
+    const pct = totalMoments > 0 ? (completedMoments / totalMoments) * 100 : 0;
+    totalPercentSum += pct;
+
+    if (momentsList.some((m) => m.status === 'YELLOW' || (m.isStopPoint && !m.teacherApproved))) {
+      pendingTeacherReview++;
+    }
+
+    totalPhotos += (p.preInspectionPhotos || []).length;
+    momentsList.forEach((m) => {
+      if (m.photos) totalPhotos += m.photos.length;
+      else if (m.photoBase64) totalPhotos += 1;
+    });
+  });
+
+  const averageProgressPercent =
+    allProjects.length > 0 ? Math.round(totalPercentSum / allProjects.length) : 0;
+
+  return res.json({
+    projects: filtered,
+    stats: {
+      totalStudents: uniqueStudents,
+      activeInField: allProjects.length,
+      pendingTeacherReview,
+      totalPhotos,
+      averageProgressPercent,
+    },
+    classes,
+  });
+});
+
+// POST /api/field/student-work - Upsert a student project
+app.post('/api/field/student-work', (req, res) => {
+  const { project } = req.body;
+  if (!project || !project.id) {
+    return res.status(400).json({ error: 'Projektdata saknas eller är ogiltig.' });
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+  project.lastSyncedAt = now;
+  project.updatedAt = now;
+
+  cloudState.projects[project.id] = project;
+  saveStorage(cloudState);
+
+  return res.json({ success: true, lastSyncedAt: now, project });
+});
+
+// POST /api/field/sync-all-local - Batch sync multiple projects from local IndexedDB
+app.post('/api/field/sync-all-local', (req, res) => {
+  const { projects } = req.body;
+  if (!Array.isArray(projects)) {
+    return res.status(400).json({ error: 'Projekten måste skickas som en array.' });
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+  let count = 0;
+
+  projects.forEach((proj: any) => {
+    if (proj && proj.id) {
+      proj.lastSyncedAt = now;
+      if (!proj.updatedAt) proj.updatedAt = now;
+      cloudState.projects[proj.id] = {
+        ...(cloudState.projects[proj.id] || {}),
+        ...proj,
+      };
+      count++;
+    }
+  });
+
+  saveStorage(cloudState);
+  return res.json({ success: true, count, syncedAt: now });
+});
+
+// POST /api/field/teacher-review - Save teacher evaluation, moment feedback, and stop point approval
+app.post('/api/field/teacher-review', (req, res) => {
+  const { projectId, teacherId, teacherName, overallComment, grade, momentNotes, approvedMoments } = req.body;
+
+  if (!projectId) {
+    return res.status(400).json({ error: 'Projekt-ID krävs.' });
+  }
+
+  const project = cloudState.projects[projectId];
+  if (!project) {
+    return res.status(404).json({ error: 'Projektet hittades inte i molnet.' });
+  }
+
+  const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
+
+  project.teacherFeedback = {
+    overallComment: overallComment !== undefined ? overallComment : project.teacherFeedback?.overallComment,
+    evaluatedAt: now,
+    evaluatedBy: teacherName || project.teacherFeedback?.evaluatedBy || 'Yrkeslärare',
+    grade: grade !== undefined ? grade : project.teacherFeedback?.grade,
+    momentNotes: {
+      ...(project.teacherFeedback?.momentNotes || {}),
+      ...(momentNotes || {}),
+    },
+    approvedMoments: {
+      ...(project.teacherFeedback?.approvedMoments || {}),
+      ...(approvedMoments || {}),
+    },
+  };
+
+  // If moments were approved, update moments status & teacherApproved flag
+  if (approvedMoments && project.moments) {
+    Object.entries(approvedMoments).forEach(([mId, isApproved]) => {
+      if (project.moments[mId]) {
+        if (isApproved) {
+          project.moments[mId].teacherApproved = true;
+          if (project.moments[mId].status === 'YELLOW') {
+            project.moments[mId].status = 'GREEN';
+          }
+        }
+      }
+    });
+  }
+
+  project.updatedAt = now;
+  cloudState.projects[projectId] = project;
+  saveStorage(cloudState);
+
+  return res.json({ success: true, project });
+});
+
+// GET /api/classes - List all unique classes
+app.get('/api/classes', (_req, res) => {
+  const classMap: Record<string, number> = {};
+
+  (cloudState.users || []).forEach((u) => {
+    if (u.role === 'STUDENT' && u.schoolClass) {
+      classMap[u.schoolClass] = (classMap[u.schoolClass] || 0) + 1;
+    }
+  });
+
+  Object.values(cloudState.projects || {}).forEach((p: any) => {
+    if (p.schoolClass) {
+      if (!classMap[p.schoolClass]) {
+        classMap[p.schoolClass] = 0;
+      }
+    }
+  });
+
+  const classes = Object.entries(classMap).map(([name, count]) => ({
+    name,
+    studentCount: count,
+  }));
+
+  return res.json({ classes });
 });
 
 // ==========================================

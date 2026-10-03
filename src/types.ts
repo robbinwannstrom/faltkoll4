@@ -131,6 +131,25 @@ export interface Project {
   groupCode?: string;
   lastSyncedAt?: string;
   assignedTo?: string;
+  // Ägarskap & Skapare
+  creatorId?: string;
+  creatorName?: string;
+  creatorEmail?: string;
+  creatorRole?: UserRole;
+  // Elevtillhörighet & Fältöversikt (Endast för elevarbeten)
+  studentId?: string;
+  studentName?: string;
+  studentEmail?: string;
+  schoolClass?: string;
+  studentGroup?: string;
+  teacherFeedback?: {
+    overallComment?: string;
+    evaluatedAt?: string;
+    evaluatedBy?: string;
+    grade?: 'GODKÄND' | 'UNDERKÄND' | 'KOMPLETTERING_KRÄVS';
+    momentNotes?: Record<string, string>;
+    approvedMoments?: Record<string, boolean>;
+  };
   // Lärarövning & Anpassade moment
   exerciseCode?: string;
   isTeacherExercise?: boolean;
@@ -299,4 +318,10 @@ export interface TeacherNotification {
   readBy?: string[];
 }
 
-export type ViewState = 'DASHBOARD' | 'CREATE_PROJECT' | 'CHECKLIST' | 'ACCOUNTS' | 'APK_EXPORT';
+export type ViewState =
+  | 'DASHBOARD'
+  | 'CREATE_PROJECT'
+  | 'CHECKLIST'
+  | 'ACCOUNTS'
+  | 'APK_EXPORT'
+  | 'FIELD_MONITOR';

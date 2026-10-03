@@ -61,6 +61,15 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
   const isAndroid =
     typeof navigator !== 'undefined' && /Android/i.test(navigator.userAgent);
 
+  const isInIframe = React.useMemo(() => {
+    if (typeof window === 'undefined') return false;
+    try {
+      return window.self !== window.top;
+    } catch {
+      return true;
+    }
+  }, []);
+
   const isMobileDevice =
     isIOS ||
     isAndroid ||
@@ -181,6 +190,27 @@ export const MobileInstallModal: React.FC<MobileInstallModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {/* Om användaren sitter inuti AI Studio / iframe där webbläsarens verktygsfält blockerar installation */}
+        {isInIframe && typeof window !== 'undefined' && (
+          <div className="p-4 bg-orange-500/15 border-2 border-orange-500 rounded-2xl space-y-2.5 text-left">
+            <div className="text-xs font-black uppercase text-orange-400 tracking-wider">
+              Varför går det inte att installera från verktygsfältet här?
+            </div>
+            <p className="text-xs text-slate-200 leading-relaxed">
+              Just nu visas appen inuti ett förhandsgranskningsfönster (iframe). Webbläsare tillåter av säkerhetsskäl aldrig installation av en app inifrån en inbäddad ram. Öppna appen i en egen webbläsarflik först, så fungerar installationsknappen direkt!
+            </p>
+            <a
+              href={window.location.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full min-h-[44px] px-4 bg-orange-500 hover:bg-orange-400 text-black font-black text-xs sm:text-sm rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all"
+            >
+              <Download className="w-4 h-4 stroke-[2.5]" />
+              <span>Öppna appen i egen flik för att installera</span>
+            </a>
+          </div>
+        )}
 
         {/* OBS-ruta om WinRAR & ZIP */}
         <div className="p-3.5 bg-amber-500/15 border-2 border-amber-500/50 rounded-2xl flex items-start gap-3 text-left">

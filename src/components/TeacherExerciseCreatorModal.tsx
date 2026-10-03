@@ -551,14 +551,14 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
                           </div>
                         </div>
 
-                        <div className="pt-3 border-t border-[#262626] flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5">
+                        <div className="pt-3 border-t border-[#262626] flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <button
                               type="button"
                               onClick={() => handleEditExercise(ex)}
                               className="px-3 py-1.5 bg-[#252525] hover:bg-[#333333] text-slate-200 hover:text-white rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
                             >
-                              <Edit3 className="w-3.5 h-3.5 text-orange-400" />
+                              <Edit3 className="w-3.5 h-3.5 text-orange-400 shrink-0" />
                               <span>Redigera & Inställningar</span>
                             </button>
 
@@ -568,7 +568,7 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
                               className="p-1.5 bg-[#252525] hover:bg-rose-950 text-slate-400 hover:text-rose-300 rounded-lg text-xs cursor-pointer transition-colors"
                               title="Ta bort övning"
                             >
-                              <Trash2 className="w-4 h-4" />
+                              <Trash2 className="w-4 h-4 shrink-0" />
                             </button>
                           </div>
 
@@ -579,9 +579,9 @@ export const TeacherExerciseCreatorModal: React.FC<TeacherExerciseCreatorModalPr
                                 onStartExerciseProject(ex);
                                 onClose();
                               }}
-                              className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-md shadow-orange-500/20 transition-all"
+                              className="px-3.5 py-1.5 bg-orange-500 hover:bg-orange-400 active:scale-95 text-black font-black text-xs rounded-lg flex items-center gap-1.5 cursor-pointer shadow-md shadow-orange-500/20 transition-all shrink-0"
                             >
-                              <Play className="w-3.5 h-3.5 fill-black" />
+                              <Play className="w-3.5 h-3.5 fill-black shrink-0" />
                               <span>Testkör övning</span>
                             </button>
                           )}

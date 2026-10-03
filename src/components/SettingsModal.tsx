@@ -621,43 +621,69 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <div>
                 <h3 className="text-base font-black text-white">2. Välj App-Layout & Detaljnivå</h3>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Bestäm hur information och knappar ska presenteras i fält.
+                  Välj hur information och knappar presenteras i fält. Varje layout är skräddarsydd för olika arbetsförhållanden.
                 </p>
               </div>
 
-              <div className="grid grid-cols-1 gap-2.5">
-                {/* 1. Enkel Lista (Ingen Bling) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* 1. Enkel Lista */}
                 <button
                   type="button"
                   onClick={() => handleSelectLayout('SIMPLE_LIST')}
-                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                     layoutMode === 'SIMPLE_LIST'
-                      ? 'bg-orange-500/10 border-orange-500 text-white'
+                      ? 'bg-orange-500/10 border-orange-500 ring-2 ring-orange-500/30 text-white shadow-lg shadow-orange-950/20'
                       : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm sm:text-base text-white">
-                          Enkel Lista (Ingen Bling)
+                        <span className="font-black text-sm text-white">
+                          Enkel lista (Minimalist)
                         </span>
-                        <span className="text-[10px] font-bold uppercase tracking-wider bg-orange-500 text-black px-2 py-0.5 rounded-md">
+                        <span className="text-[9px] font-black uppercase tracking-wider bg-orange-500 text-black px-1.5 py-0.5 rounded">
                           Standard
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Ren, avskalad listvy utan skuggor, stora rutor eller visuellt brus. Filter och extraverktyg ligger samlade under knappar.
-                      </p>
+                      <div
+                        className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                          layoutMode === 'SIMPLE_LIST'
+                            ? 'border-orange-500 bg-orange-500 text-black'
+                            : 'border-[#444] bg-[#121212]'
+                        }`}
+                      >
+                        {layoutMode === 'SIMPLE_LIST' && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
                     </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                        layoutMode === 'SIMPLE_LIST'
-                          ? 'border-orange-500 bg-orange-500 text-black'
-                          : 'border-[#444] bg-[#121212]'
-                      }`}
-                    >
-                      {layoutMode === 'SIMPLE_LIST' && <Check className="w-3 h-3 stroke-[3]" />}
+
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Avskalad radvy med tunna avskiljare och direkt klickbockning. Snabb och distraktionsfri utan stora lådor.
+                    </p>
+                  </div>
+
+                  {/* Visuell miniatyrbild / Layout-diagram */}
+                  <div className="w-full rounded-xl bg-[#101010] border border-[#2a2a2a] p-2 space-y-1.5">
+                    <div className="h-5 rounded bg-[#161616] border border-[#242424] px-2 flex items-center justify-between text-[9px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                        <span className="text-slate-200 font-bold">1.1 Inmätning & profiler</span>
+                      </div>
+                      <span className="font-mono text-slate-500">BBC.31</span>
+                    </div>
+                    <div className="h-5 rounded bg-[#161616] border border-[#242424] px-2 flex items-center justify-between text-[9px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500"></span>
+                        <span className="text-slate-200 font-bold">1.2 Avtäckning matjord</span>
+                      </div>
+                      <span className="font-mono text-slate-500">CBB.1</span>
+                    </div>
+                    <div className="h-5 rounded bg-[#161616] border border-[#242424] px-2 flex items-center justify-between text-[9px]">
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full border border-slate-600"></span>
+                        <span className="text-slate-400">1.3 Schaktbotten</span>
+                      </div>
+                      <span className="font-mono text-slate-500">CBE.1</span>
                     </div>
                   </div>
                 </button>
@@ -666,31 +692,64 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSelectLayout('COMPACT')}
-                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                     layoutMode === 'COMPACT'
-                      ? 'bg-orange-500/10 border-orange-500 text-white'
+                      ? 'bg-orange-500/10 border-orange-500 ring-2 ring-orange-500/30 text-white shadow-lg shadow-orange-950/20'
                       : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm sm:text-base text-white">
-                          Kompakt Tabellvy
+                        <span className="font-black text-sm text-white">
+                          Kompakt Tabellvy (Datatabell)
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Extra täta rader för maximal överblick när du vill se många projekt och moment på skärmen samtidigt.
-                      </p>
+                      <div
+                        className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                          layoutMode === 'COMPACT'
+                            ? 'border-orange-500 bg-orange-500 text-black'
+                            : 'border-[#444] bg-[#121212]'
+                        }`}
+                      >
+                        {layoutMode === 'COMPACT' && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
                     </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                        layoutMode === 'COMPACT'
-                          ? 'border-orange-500 bg-orange-500 text-black'
-                          : 'border-[#444] bg-[#121212]'
-                      }`}
-                    >
-                      {layoutMode === 'COMPACT' && <Check className="w-3 h-3 stroke-[3]" />}
+
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Tät tabell med kolumner för Status, Kod, Moment och Foton. Se 15+ moment på skärmen utan att behöva skrolla.
+                    </p>
+                  </div>
+
+                  {/* Visuell miniatyrbild / Layout-diagram */}
+                  <div className="w-full rounded-xl bg-[#101010] border border-[#2a2a2a] p-1.5 text-[8px] font-mono space-y-1">
+                    <div className="grid grid-cols-6 gap-1 px-1 py-0.5 bg-[#1e1e1e] rounded text-slate-400 font-bold border-b border-[#333]">
+                      <span>STAT</span>
+                      <span>NR</span>
+                      <span className="col-span-2">MOMENT</span>
+                      <span>KOD</span>
+                      <span className="text-right">FOTO</span>
+                    </div>
+                    <div className="grid grid-cols-6 gap-1 px-1 py-0.5 items-center border-b border-[#1c1c1c] text-emerald-400">
+                      <span>✓ Klar</span>
+                      <span>1.1</span>
+                      <span className="col-span-2 truncate text-slate-300">Inmätning</span>
+                      <span className="text-slate-500">BBC.31</span>
+                      <span className="text-right text-emerald-300">2 st</span>
+                    </div>
+                    <div className="grid grid-cols-6 gap-1 px-1 py-0.5 items-center border-b border-[#1c1c1c] text-amber-400">
+                      <span>Pågår</span>
+                      <span>1.2</span>
+                      <span className="col-span-2 truncate text-slate-300">Avtäckning</span>
+                      <span className="text-slate-500">CBB.1</span>
+                      <span className="text-right text-slate-600">-</span>
+                    </div>
+                    <div className="grid grid-cols-6 gap-1 px-1 py-0.5 items-center text-slate-500">
+                      <span>Ej klar</span>
+                      <span>1.3</span>
+                      <span className="col-span-2 truncate text-slate-400">Schaktbotten</span>
+                      <span className="text-slate-600">CBE.1</span>
+                      <span className="text-right text-slate-600">-</span>
                     </div>
                   </div>
                 </button>
@@ -699,64 +758,103 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 <button
                   type="button"
                   onClick={() => handleSelectLayout('FIELD_CLEAR')}
-                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                     layoutMode === 'FIELD_CLEAR'
-                      ? 'bg-orange-500/10 border-orange-500 text-white'
+                      ? 'bg-orange-500/10 border-orange-500 ring-2 ring-orange-500/30 text-white shadow-lg shadow-orange-950/20'
                       : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm sm:text-base text-white">
+                        <span className="font-black text-sm text-white">
                           Stora Fältkort (Handskläge)
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Större kort och extra breda knappar anpassade för arbete utomhus med handskar.
-                      </p>
+                      <div
+                        className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                          layoutMode === 'FIELD_CLEAR'
+                            ? 'border-orange-500 bg-orange-500 text-black'
+                            : 'border-[#444] bg-[#121212]'
+                        }`}
+                      >
+                        {layoutMode === 'FIELD_CLEAR' && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
                     </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                        layoutMode === 'FIELD_CLEAR'
-                          ? 'border-orange-500 bg-orange-500 text-black'
-                          : 'border-[#444] bg-[#121212]'
-                      }`}
-                    >
-                      {layoutMode === 'FIELD_CLEAR' && <Check className="w-3 h-3 stroke-[3]" />}
+
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Stora taktila kort med 52px+ knappar direkt på kortets framsida. Godkänn och fota direkt med handskar i solsken.
+                    </p>
+                  </div>
+
+                  {/* Visuell miniatyrbild / Layout-diagram */}
+                  <div className="w-full rounded-xl bg-[#121212] border-2 border-orange-500/50 p-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="font-black text-white">1.1 Inmätning & profiler</span>
+                      <span className="bg-[#222] px-1.5 py-0.2 rounded font-mono text-orange-400 font-bold">BBC.31</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded bg-[#1e1e1e] border border-[#333] flex items-center justify-center text-[10px]">📷</div>
+                      <div className="h-1 flex-1 bg-slate-700 rounded"></div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      <div className="h-4.5 rounded bg-emerald-500 text-black text-[8px] font-black flex items-center justify-center">✓ GODKÄND</div>
+                      <div className="h-4.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[8px] font-bold flex items-center justify-center">PÅGÅR</div>
+                      <div className="h-4.5 rounded bg-[#222] text-slate-200 border border-[#333] text-[8px] font-bold flex items-center justify-center">📷 FOTA</div>
                     </div>
                   </div>
                 </button>
 
-                {/* 4. Steg-för-steg (Fokusvy) */}
+                {/* 4. Steg-för-steg */}
                 <button
                   type="button"
                   onClick={() => handleSelectLayout('GUIDED_STEP')}
-                  className={`p-4 rounded-xl border text-left transition-all cursor-pointer ${
+                  className={`p-4 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                     layoutMode === 'GUIDED_STEP'
-                      ? 'bg-orange-500/10 border-orange-500 text-white'
+                      ? 'bg-orange-500/10 border-orange-500 ring-2 ring-orange-500/30 text-white shadow-lg shadow-orange-950/20'
                       : 'bg-[#181818] border-[#2c2c2c] text-slate-300 hover:border-[#3c3c3c]'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="space-y-1">
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
-                        <span className="font-bold text-sm sm:text-base text-white">
+                        <span className="font-black text-sm text-white">
                           Steg-för-steg (Fokusvy)
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 leading-relaxed">
-                        Visar utförliga instruktioner och hjälptexter direkt vid varje delmoment.
-                      </p>
+                      <div
+                        className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
+                          layoutMode === 'GUIDED_STEP'
+                            ? 'border-orange-500 bg-orange-500 text-black'
+                            : 'border-[#444] bg-[#121212]'
+                        }`}
+                      >
+                        {layoutMode === 'GUIDED_STEP' && <Check className="w-3 h-3 stroke-[3]" />}
+                      </div>
                     </div>
-                    <div
-                      className={`w-5 h-5 rounded-full border flex items-center justify-center shrink-0 ${
-                        layoutMode === 'GUIDED_STEP'
-                          ? 'border-orange-500 bg-orange-500 text-black'
-                          : 'border-[#444] bg-[#121212]'
-                      }`}
-                    >
-                      {layoutMode === 'GUIDED_STEP' && <Check className="w-3 h-3 stroke-[3]" />}
+
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      Pedagogiskt flöde med ett fokuserat moment i taget. Stegindikator, fulla handledartips och [Föregående / Nästa] knappar.
+                    </p>
+                  </div>
+
+                  {/* Visuell miniatyrbild / Layout-diagram */}
+                  <div className="w-full rounded-xl bg-[#101010] border border-sky-500/40 p-2 space-y-1.5">
+                    <div className="flex items-center justify-between text-[8px]">
+                      <span className="font-black text-sky-400">Steg 1 av 14 • Schakt & Inmätning</span>
+                      <div className="flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-sky-400 ring-2 ring-sky-500/50"></span>
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-700"></span>
+                      </div>
+                    </div>
+                    <div className="p-1 rounded bg-[#161616] border border-[#262626] text-[8px] text-slate-300">
+                      <span className="font-bold text-white block">1.1 Inmätning & profiler (BBC.31)</span>
+                      <span className="text-[7px] text-slate-400 block truncate">Kontrollera ledningskollen innan schaktning påbörjas...</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[8px] font-bold">
+                      <span className="text-slate-500">← Föregående</span>
+                      <span className="bg-sky-500 text-black px-2 py-0.5 rounded font-black">Nästa steg →</span>
                     </div>
                   </div>
                 </button>

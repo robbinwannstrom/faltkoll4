@@ -588,7 +588,7 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
                         }`}
                       >
                         {/* Moment Summary Row */}
-                        <div className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                        <div className="p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                           <div className="flex items-start sm:items-center gap-3 flex-1 min-w-0">
                             <button
                               type="button"
@@ -597,9 +597,9 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
                               title={isChecked ? 'Avmarkera moment' : 'Inkludera moment i övningen'}
                             >
                               {isChecked ? (
-                                <CheckSquare className="w-5 h-5 text-orange-500" />
+                                <CheckSquare className="w-5 h-5 text-orange-500 shrink-0" />
                               ) : (
-                                <Square className="w-5 h-5 text-slate-600" />
+                                <Square className="w-5 h-5 text-slate-600 shrink-0" />
                               )}
                             </button>
 
@@ -610,28 +610,30 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
                               }
                               className="min-w-0 flex-1 cursor-pointer"
                             >
-                              <div className="flex flex-wrap items-center gap-2">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                                 <span className="text-xs sm:text-sm font-black text-white">
                                   {currentMoment.title}
                                 </span>
                                 {currentMoment.amaCode && (
-                                  <span className="text-[11px] font-mono text-slate-400">
+                                  <span className="text-[11px] font-mono text-slate-400 shrink-0">
                                     · {currentMoment.amaCode}
                                   </span>
                                 )}
                                 {currentMoment.tolerance && (
-                                  <span className="text-[11px] font-mono text-emerald-400">
+                                  <span className="text-[11px] font-mono text-emerald-400 shrink-0">
                                     · Tolerans: {currentMoment.tolerance}
                                   </span>
                                 )}
                                 {hasPhotoReq && (
-                                  <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1">
-                                    · <Camera className="w-3 h-3" /> Fotokrav
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-300 shrink-0">
+                                    <Camera className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Fotokrav</span>
                                   </span>
                                 )}
                                 {currentMoment.isStopPoint && (
-                                  <span className="text-[11px] font-bold text-rose-400 flex items-center gap-1">
-                                    · <ShieldAlert className="w-3 h-3" /> Stoppunkt (Lärarkontroll)
+                                  <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-400 shrink-0">
+                                    <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Stoppunkt (Lärarkontroll)</span>
                                   </span>
                                 )}
                               </div>
@@ -642,31 +644,31 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
                           </div>
 
                           {/* Right buttons */}
-                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                          <div className="flex flex-wrap items-center gap-1.5 shrink-0 self-start sm:self-center">
                             {isChecked && (
                               <>
                                 <button
                                   type="button"
                                   onClick={() => handleMoveMoment(moment.id, 'UP')}
-                                  className="p-1.5 rounded-lg bg-[#222] hover:bg-[#2e2e2e] text-slate-400 hover:text-white cursor-pointer"
+                                  className="p-1.5 rounded-lg bg-[#222] hover:bg-[#2e2e2e] text-slate-400 hover:text-white cursor-pointer shrink-0"
                                   title="Flytta upp moment"
                                 >
-                                  <ArrowUp className="w-3.5 h-3.5" />
+                                  <ArrowUp className="w-3.5 h-3.5 shrink-0" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => handleMoveMoment(moment.id, 'DOWN')}
-                                  className="p-1.5 rounded-lg bg-[#222] hover:bg-[#2e2e2e] text-slate-400 hover:text-white cursor-pointer"
+                                  className="p-1.5 rounded-lg bg-[#222] hover:bg-[#2e2e2e] text-slate-400 hover:text-white cursor-pointer shrink-0"
                                   title="Flytta ner moment"
                                 >
-                                  <ArrowDown className="w-3.5 h-3.5" />
+                                  <ArrowDown className="w-3.5 h-3.5 shrink-0" />
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() =>
                                     setExpandedMomentId(isDetailOpen ? null : moment.id)
                                   }
-                                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors ${
+                                  className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border cursor-pointer transition-colors shrink-0 ${
                                     isDetailOpen
                                       ? 'bg-orange-500 text-black border-orange-400 font-black'
                                       : 'text-orange-400 hover:text-orange-300 bg-orange-950/40 border-orange-800/60'
@@ -681,10 +683,10 @@ export const TeacherExerciseMomentEditor: React.FC<TeacherExerciseMomentEditorPr
                               <button
                                 type="button"
                                 onClick={() => handleDeleteMoment(moment.id)}
-                                className="p-1.5 text-slate-500 hover:text-rose-400 cursor-pointer"
+                                className="p-1.5 text-slate-500 hover:text-rose-400 cursor-pointer shrink-0"
                                 title="Ta bort moment"
                               >
-                                <Trash2 className="w-3.5 h-3.5" />
+                                <Trash2 className="w-3.5 h-3.5 shrink-0" />
                               </button>
                             )}
                           </div>

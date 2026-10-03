@@ -36,6 +36,11 @@ import { TeacherExerciseCreatorModal } from './components/TeacherExerciseCreator
 import { convertExerciseToProject } from './services/exerciseService';
 import { inferAccountContextMode } from './utils/contextLabels';
 import { syncCustomAppUrlFromCloud } from './utils/appUrl';
+import { TeacherFieldInspectionView } from './components/TeacherFieldInspectionView';
+import {
+  pushStudentProjectToCloud,
+  syncAllLocalProjectsToCloud,
+} from './services/studentWorkService';
 
 export default function App() {
   const [view, setView] = useState<ViewState>('DASHBOARD');
@@ -229,15 +234,48 @@ export default function App() {
     if (tool === 'REVISIONS') setIsRevisionsOpen(true);
   };
 
+  // Auto-sync local unsynced projects to cloud so former account work is never lost
+  useEffect(() => {
+    if (currentUser?.role === 'STUDENT') {
+      syncAllLocalProjectsToCloud(currentUser).catch(() => {});
+    }
+  }, [currentUser]);
+
   const handleSaveNewProject = async (newProj: Project) => {
+    if (currentUser) {
+      newProj.creatorId = newProj.creatorId || currentUser.id;
+      newProj.creatorName = newProj.creatorName || currentUser.displayName;
+      newProj.creatorEmail = newProj.creatorEmail || currentUser.email;
+      newProj.creatorRole = newProj.creatorRole || currentUser.role;
+
+      if (currentUser.role === 'STUDENT') {
+        newProj.studentId = newProj.studentId || currentUser.id;
+        newProj.studentName = newProj.studentName || currentUser.displayName;
+        newProj.studentEmail = newProj.studentEmail || currentUser.email;
+        newProj.schoolClass =
+          newProj.schoolClass || currentUser.schoolClass || currentUser.studentGroup || 'Ospecificerad klass';
+        newProj.studentGroup = newProj.studentGroup || currentUser.studentGroup;
+      }
+    }
     await saveProject(newProj);
     const updated = await getAllProjects();
     setProjects(updated);
+    pushStudentProjectToCloud(newProj, currentUser).catch(() => {});
   };
 
   const handleUpdateProject = async (updatedProj: Project) => {
+    if (currentUser && currentUser.role === 'STUDENT') {
+      if (!updatedProj.studentId) updatedProj.studentId = currentUser.id;
+      if (!updatedProj.studentName) updatedProj.studentName = currentUser.displayName;
+      if (!updatedProj.studentEmail) updatedProj.studentEmail = currentUser.email;
+      if (!updatedProj.schoolClass)
+        updatedProj.schoolClass = currentUser.schoolClass || currentUser.studentGroup || 'Ospecificerad klass';
+      if (!updatedProj.studentGroup) updatedProj.studentGroup = currentUser.studentGroup;
+      if (!updatedProj.creatorId) updatedProj.creatorId = currentUser.id;
+    }
     setProjects((prev) => prev.map((p) => (p.id === updatedProj.id ? updatedProj : p)));
     await saveProject(updatedProj);
+    pushStudentProjectToCloud(updatedProj, currentUser).catch(() => {});
   };
 
   // Move to Papperskorg (Soft delete)
@@ -286,12 +324,27 @@ export default function App() {
       exercise,
       currentUser?.displayName || userSettings.userName || 'Elev / Lärling'
     );
+    if (currentUser) {
+      newProj.creatorId = currentUser.id;
+      newProj.creatorName = currentUser.displayName;
+      newProj.creatorEmail = currentUser.email;
+      newProj.creatorRole = currentUser.role;
+
+      if (currentUser.role === 'STUDENT') {
+        newProj.studentId = currentUser.id;
+        newProj.studentName = currentUser.displayName;
+        newProj.studentEmail = currentUser.email;
+        newProj.schoolClass = currentUser.schoolClass || currentUser.studentGroup || 'Ospecificerad klass';
+        newProj.studentGroup = currentUser.studentGroup;
+      }
+    }
     await saveProject(newProj);
     const updated = await getAllProjects();
     setProjects(updated);
     setActiveProjectId(newProj.id);
     setView('CHECKLIST');
     window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+    pushStudentProjectToCloud(newProj, currentUser).catch(() => {});
   };
 
   const handleProjectImported = async (imported: Project) => {
@@ -347,6 +400,40 @@ export default function App() {
 
   const activeProject = projects.find((p) => p.id === activeProjectId);
 
+  // Filter projects by user role:
+  // - Students ONLY see their own personal projects (matching studentId, creatorId, or studentEmail)
+  // - Teachers/Admins on Dashboard see their own created projects/templates.
+  //   Student field projects are inspected separately under "Elever i fält" (FIELD_MONITOR)
+  //   so the teacher's personal Dashboard is not flooded with all student work!
+  const visibleProjects = projects.filter((p) => {
+    if (!currentUser) return false;
+
+    // Student role: Strictly show ONLY the student's own projects
+    if (currentUser.role === 'STUDENT') {
+      if (p.studentId && p.studentId === currentUser.id) return true;
+      if (p.creatorId && p.creatorId === currentUser.id) return true;
+      if (p.studentEmail && p.studentEmail.toLowerCase() === currentUser.email.toLowerCase()) return true;
+      return false;
+    }
+
+    // Teacher & Admin roles on main Dashboard:
+    // Show projects created by the teacher/admin or assigned to them.
+    // If a project has a studentId belonging to another student, it is considered a student field work
+    // and is inspected in "Elever i fält" instead of cluttering the teacher's main dashboard.
+    const isOtherStudentFieldWork = !!p.studentId && p.studentId !== currentUser.id;
+    if (isOtherStudentFieldWork) {
+      return false;
+    }
+    return true;
+  });
+
+  // Ensure students never end up in FIELD_MONITOR view
+  useEffect(() => {
+    if (view === 'FIELD_MONITOR' && currentUser?.role === 'STUDENT') {
+      setView('DASHBOARD');
+    }
+  }, [view, currentUser]);
+
   // If user is not logged in, strictly gate with LoginView so no projects or data are ever visible
   if (!currentUser) {
     return <LoginView onLoginSuccess={handleUserLogin} />;
@@ -358,6 +445,10 @@ export default function App() {
       <Header
         currentView={view}
         onNavigate={(newView) => {
+          if (newView === 'FIELD_MONITOR' && currentUser?.role === 'STUDENT') {
+            setView('DASHBOARD');
+            return;
+          }
           setView(newView);
           if (newView === 'DASHBOARD') {
             setActiveProjectId(null);
@@ -368,6 +459,7 @@ export default function App() {
         onOpenCollaboration={() => setIsCollabOpen(true)}
         onOpenReport={() => activeProject && setActiveReportProject(activeProject)}
         onOpenNotices={() => setIsNoticesOpen(true)}
+        onOpenQRCodeModal={() => setIsMobileInstallOpen(true)}
         onLogout={handleUserLogout}
         currentUser={currentUser}
         userSettings={userSettings}
@@ -389,7 +481,7 @@ export default function App() {
           <>
             {view === 'DASHBOARD' && (
               <DashboardView
-                projects={projects}
+                projects={visibleProjects}
                 onOpenProject={handleOpenProject}
                 onCreateNew={() => setView('CREATE_PROJECT')}
                 onDeleteProject={handleDeleteProject}
@@ -402,6 +494,7 @@ export default function App() {
                 }}
                 onOpenExerciseCreator={() => setIsExerciseCreatorOpen(true)}
                 onOpenAccounts={() => setView('ACCOUNTS')}
+                onOpenFieldMonitor={() => setView('FIELD_MONITOR')}
                 onOpenAPKExport={() => setView('APK_EXPORT')}
                 currentUser={currentUser}
                 userSettings={userSettings}
@@ -458,6 +551,15 @@ export default function App() {
             {view === 'APK_EXPORT' && (
               <APKExportView onBack={() => setView('DASHBOARD')} />
             )}
+
+            {view === 'FIELD_MONITOR' && (
+              <TeacherFieldInspectionView
+                currentUser={currentUser}
+                userSettings={userSettings}
+                onOpenReport={(proj) => setActiveReportProject(proj)}
+                onBackToDashboard={() => setView('DASHBOARD')}
+              />
+            )}
           </>
         )}
       </main>
@@ -474,6 +576,10 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenTrashBin={() => setIsTrashBinOpen(true)}
         onOpenNotices={() => setIsNoticesOpen(true)}
+        onOpenFieldMonitor={() => {
+          setIsNavMenuOpen(false);
+          setView('FIELD_MONITOR');
+        }}
         onOpenAccounts={() => {
           setIsNavMenuOpen(false);
           setView('ACCOUNTS');
